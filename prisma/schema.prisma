@@ -1,0 +1,166 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String                  @id @default(cuid())
+  email        String                  @unique
+  name         String
+  role         Role
+  passwordHash String?
+  departmentId String?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  facultyProfile FacultyProfile?
+  schedules      Schedule[]
+  requests       ScheduleChangeRequest[]
+}
+
+enum Role {
+  SUPERSUPERADMIN
+  SUPERADMIN
+  DEPTADMIN
+  CASADMIN
+  FACULTY
+  STUDENT
+}
+
+model FacultyProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id])
+  fullName         String
+  bsDegree         String
+  msDegree         String?
+  status           String
+  designation      String?
+  canTeach         FacultyCanTeach[]
+}
+
+// SQLite does not support primitive arrays (String[]). Use a join table instead.
+// If you later switch to PostgreSQL, you can keep this join table (recommended),
+// or refactor to an array field if you prefer.
+model FacultyCanTeach {
+  id              String         @id @default(cuid())
+  facultyProfileId String
+  facultyProfile  FacultyProfile @relation(fields: [facultyProfileId], references: [id], onDelete: Cascade)
+  subjectId       String
+  subject         Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([facultyProfileId, subjectId])
+}
+
+model Major {
+  id       String    @id @default(cuid())
+  code     String    @unique
+  name     String
+  sections Section[]
+}
+
+model Section {
+  id           String    @id @default(cuid())
+  majorId      String
+  major        Major     @relation(fields: [majorId], references: [id])
+  name         String
+  yearLevel    Int
+  studentCount Int       @default(40)
+  schedules    Schedule[]
+
+  @@unique([majorId, name])
+}
+
+model Subject {
+  id           String       @id @default(cuid())
+  code         String       @unique
+  title        String
+  units        Float
+  lecHours     Float
+  labHours     Float
+  type         SubjectType
+  college      String?
+  prerequisite String?
+  schedules    Schedule[]
+  canBeTaughtBy FacultyCanTeach[]
+}
+
+enum SubjectType {
+  GEC
+  DEPARTMENTAL
+}
+
+model Room {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  building  String
+  floor     Int
+  capacity  Int
+  type      RoomType
+  schedules Schedule[]
+}
+
+enum RoomType {
+  LECTURE
+  LAB
+}
+
+model Schedule {
+  id           String         @id @default(cuid())
+  subjectId    String
+  subject      Subject        @relation(fields: [subjectId], references: [id])
+  instructorId String
+  instructor   User           @relation(fields: [instructorId], references: [id])
+  sectionId    String
+  section      Section        @relation(fields: [sectionId], references: [id])
+  roomId       String
+  room         Room           @relation(fields: [roomId], references: [id])
+  day          DayOfWeek
+  startTime    String
+  endTime      String
+  status       ScheduleStatus @default(DRAFT)
+  semester     String
+  academicYear String
+
+  changeRequests ScheduleChangeRequest[]
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+}
+
+enum ScheduleStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ScheduleChangeRequest {
+  id           String        @id @default(cuid())
+  requesterId  String
+  requester    User          @relation(fields: [requesterId], references: [id])
+  scheduleId   String?
+  schedule     Schedule?     @relation(fields: [scheduleId], references: [id])
+  reason       String
+  newStartTime String?
+  newRoomId    String?
+  status       RequestStatus @default(PENDING)
+  createdAt    DateTime      @default(now())
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+

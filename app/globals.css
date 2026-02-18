@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 222 47% 99%;
+  --foreground: 222 84% 4%;
+}
+
+.dark {
+  --background: 222 47% 6%;
+  --foreground: 210 40% 98%;
+}
+
+body {
+  @apply bg-slate-950/5 dark:bg-slate-950 text-slate-900 dark:text-slate-50 antialiased;
+}
+
+.glass-panel {
+  @apply bg-white/10 dark:bg-slate-900/40 backdrop-blur-xl border border-white/10 dark:border-slate-700/60 shadow-xl;
+}
+
