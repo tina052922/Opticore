@@ -2,7 +2,7 @@
 // NOTE: This is intentionally simple; you can later plug in an advanced solver
 // such as Google OR-Tools by replacing the core loop here.
 
-import { DayOfWeek, ScheduleStatus } from "@prisma/client";
+import { DayOfWeek, ScheduleStatus, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const TIMESLOTS = [
@@ -10,6 +10,15 @@ export const TIMESLOTS = [
   { startTime: "12:00", endTime: "17:00" },
   { startTime: "17:00", endTime: "21:00" }
 ];
+
+// Simple policy-based rules (can be extended later)
+const MAX_DAILY_MINUTES_PER_INSTRUCTOR = 6 * 60; // e.g. 6 hours per day
+
+function slotDurationMinutes(slot: { startTime: string; endTime: string }): number {
+  const [sh, sm] = slot.startTime.split(":").map(Number);
+  const [eh, em] = slot.endTime.split(":").map(Number);
+  return eh * 60 + em - (sh * 60 + sm);
+}
 
 const DAYS: DayOfWeek[] = [
   DayOfWeek.MONDAY,
@@ -23,17 +32,25 @@ const DAYS: DayOfWeek[] = [
 type GenerateOptions = {
   semester: string;
   academicYear: string;
+  collegeId?: string;
 };
 
 export async function greedyGenerateDraft(options: GenerateOptions) {
-  const { semester, academicYear } = options;
+  const { semester, academicYear, collegeId } = options;
+
+  const sectionWhere = collegeId
+    ? { program: { collegeId } }
+    : {};
 
   const [sections, subjects, rooms, faculty, existing] = await Promise.all([
-    prisma.section.findMany(),
+    prisma.section.findMany({
+      where: sectionWhere,
+      include: { program: true }
+    }),
     prisma.subject.findMany(),
     prisma.room.findMany(),
     prisma.user.findMany({
-      where: { role: "FACULTY" },
+      where: { role: Role.INSTRUCTOR },
       include: {
         facultyProfile: {
           include: { canTeach: { include: { subject: true } } }
@@ -51,6 +68,28 @@ export async function greedyGenerateDraft(options: GenerateOptions) {
         `${s.day}-${s.startTime}-${s.endTime}-${s.roomId}-${s.sectionId}-${s.instructorId}`
     )
   );
+
+  // Track per-instructor daily load (in minutes) to enforce policy rules
+  const instructorDayMinutes = new Map<
+    string,
+    Map<DayOfWeek, number>
+  >();
+
+  const addMinutes = (instructorId: string, day: DayOfWeek, mins: number) => {
+    let dayMap = instructorDayMinutes.get(instructorId);
+    if (!dayMap) {
+      dayMap = new Map<DayOfWeek, number>();
+      instructorDayMinutes.set(instructorId, dayMap);
+    }
+    const current = dayMap.get(day) ?? 0;
+    dayMap.set(day, current + mins);
+  };
+
+  // Seed with existing schedules so we don't exceed limits when adding new ones
+  for (const s of existing) {
+    const mins = slotDurationMinutes({ startTime: s.startTime, endTime: s.endTime });
+    addMinutes(s.instructorId, s.day, mins);
+  }
 
   const created: string[] = [];
 
@@ -72,6 +111,14 @@ export async function greedyGenerateDraft(options: GenerateOptions) {
           const key = `${day}-${slot.startTime}-${slot.endTime}-${room.id}-${section.id}-${instructor.id}`;
           if (usedSlots.has(key)) continue;
 
+          // Policy rule: don't exceed daily teaching load per instructor
+          const slotMins = slotDurationMinutes(slot);
+          const dayMap = instructorDayMinutes.get(instructor.id) ?? new Map<DayOfWeek, number>();
+          const currentMins = dayMap.get(day) ?? 0;
+          if (currentMins + slotMins > MAX_DAILY_MINUTES_PER_INSTRUCTOR) {
+            continue;
+          }
+
           await prisma.schedule.create({
             data: {
               subjectId: subject.id,
@@ -87,6 +134,7 @@ export async function greedyGenerateDraft(options: GenerateOptions) {
             }
           });
           usedSlots.add(key);
+          addMinutes(instructor.id, day, slotMins);
           created.push(key);
           break;
         }

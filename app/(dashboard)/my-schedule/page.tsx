@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth.config";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 async function getData(userId: string) {
   const [schedules, requests] = await Promise.all([
@@ -10,7 +11,7 @@ async function getData(userId: string) {
       include: {
         subject: true,
         room: true,
-        section: { include: { major: true } }
+        section: { include: { program: true } }
       },
       orderBy: [{ day: "asc" }, { startTime: "asc" }]
     }),
@@ -18,7 +19,7 @@ async function getData(userId: string) {
       where: { requesterId: userId },
       include: {
         schedule: {
-          include: { subject: true, room: true, section: { include: { major: true } } }
+          include: { subject: true, room: true, section: { include: { program: true } } }
         }
       },
       orderBy: { createdAt: "desc" }
@@ -32,11 +33,12 @@ export default async function MySchedulePage() {
   if (!session?.user) redirect("/login");
 
   const role = (session.user as any).role as string | undefined;
-  if (role !== "FACULTY") {
+  if (role !== "INSTRUCTOR") {
     redirect("/dashboard");
   }
 
-  const userId = (session.user as any).id ?? session.user.email;
+  const userId = (session.user as any).id;
+  if (!userId) redirect("/login");
   const { schedules, requests } = await getData(userId);
 
   async function createChangeRequest(formData: FormData) {
@@ -48,19 +50,18 @@ export default async function MySchedulePage() {
     const scheduleId = formData.get("scheduleId")?.toString();
     const reason = formData.get("reason")?.toString() ?? "";
     const newStartTime = formData.get("newStartTime")?.toString() || null;
-    const newRoomId = formData.get("newRoomId")?.toString() || null;
 
     if (!scheduleId || !reason) {
       throw new Error("Missing fields");
     }
 
+    // Instructors may only request time changes, not room changes
     await prisma.scheduleChangeRequest.create({
       data: {
         requesterId,
         scheduleId,
         reason,
-        newStartTime: newStartTime || undefined,
-        newRoomId: newRoomId || undefined
+        newStartTime: newStartTime || undefined
       }
     });
   }
@@ -89,7 +90,7 @@ export default async function MySchedulePage() {
                 <th className="px-3 py-2">Subject</th>
                 <th className="px-3 py-2">Section</th>
                 <th className="px-3 py-2">Room</th>
-                <th className="px-3 py-2 text-right">Request change</th>
+                <th className="px-3 py-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -104,30 +105,31 @@ export default async function MySchedulePage() {
                     <span className="text-slate-400">· {s.subject.title}</span>
                   </td>
                   <td className="px-3 py-2">
-                    {s.section.major.code} {s.section.name}
+                    {s.section.program.code} {s.section.name}
                   </td>
-                  <td className="px-3 py-2">{s.room.code}</td>
+                  <td className="px-3 py-2">
+                    <span>{s.room.code}</span>{" "}
+                    <Link
+                      href={`/room-locator?room=${encodeURIComponent(s.room.code)}`}
+                      className="ml-1 text-[10px] text-brand-teal hover:underline"
+                    >
+                      Open in Locator
+                    </Link>
+                  </td>
                   <td className="px-3 py-2 text-right">
                     <form action={createChangeRequest} className="flex flex-col gap-1 text-[11px]">
                       <input type="hidden" name="scheduleId" value={s.id} />
                       <input
                         name="reason"
-                        placeholder="Reason for change / swap"
+                        placeholder="Reason for time change"
                         className="h-8 w-full rounded-md border border-slate-800 bg-slate-900/70 px-2 text-[11px] outline-none focus-visible:border-brand-teal focus-visible:ring-1 focus-visible:ring-brand-teal"
                         required
                       />
-                      <div className="flex gap-1">
-                        <input
-                          name="newStartTime"
-                          placeholder="New start (optional)"
-                          className="h-7 w-28 rounded-md border border-slate-800 bg-slate-900/70 px-2 text-[11px] outline-none focus-visible:border-brand-teal focus-visible:ring-1 focus-visible:ring-brand-teal"
-                        />
-                        <input
-                          name="newRoomId"
-                          placeholder="New room code"
-                          className="h-7 flex-1 rounded-md border border-slate-800 bg-slate-900/70 px-2 text-[11px] outline-none focus-visible:border-brand-teal focus-visible:ring-1 focus-visible:ring-brand-teal"
-                        />
-                      </div>
+                      <input
+                        name="newStartTime"
+                        placeholder="Requested new time (e.g. 9:00)"
+                        className="h-7 w-36 rounded-md border border-slate-800 bg-slate-900/70 px-2 text-[11px] outline-none focus-visible:border-brand-teal focus-visible:ring-1 focus-visible:ring-brand-teal"
+                      />
                       <Button
                         type="submit"
                         variant="outline"
@@ -165,7 +167,7 @@ export default async function MySchedulePage() {
               <tr>
                 <th className="px-3 py-2">Subject</th>
                 <th className="px-3 py-2">Original</th>
-                <th className="px-3 py-2">Requested</th>
+                <th className="px-3 py-2">Requested time</th>
                 <th className="px-3 py-2">Reason</th>
                 <th className="px-3 py-2">Status</th>
               </tr>
@@ -181,7 +183,7 @@ export default async function MySchedulePage() {
                     {r.schedule?.room.code}
                   </td>
                   <td className="px-3 py-2">
-                    {r.newStartTime || "-"} · {r.newRoomId || "-"}
+                    {r.newStartTime || "-"}
                   </td>
                   <td className="px-3 py-2 max-w-xs truncate" title={r.reason}>
                     {r.reason}
