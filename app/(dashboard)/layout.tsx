@@ -6,15 +6,15 @@ import { Button } from "@/components/ui/button";
 import { UserBar } from "@/components/layout/user-bar";
 
 const ROLE_LABELS: Record<string, string> = {
-  SUPERSUPERADMIN: "SuperSuperAdmin",
-  SUPERADMIN: "SuperAdmin",
-  DEPTADMIN: "DeptAdmin",
-  CASADMIN: "CASAdmin",
-  FACULTY: "Faculty",
-  STUDENT: "Student"
+  DOI: "Dean of Instructions",
+  COLLEGE_ADMIN: "College Admin",
+  CHAIRMAN_ADMIN: "Chairman Admin",
+  INSTRUCTOR: "Instructor",
+  STUDENT: "Student",
+  VISITOR: "Visitor"
 };
 
-const ADMIN_ROLES = new Set(["SUPERSUPERADMIN", "SUPERADMIN", "DEPTADMIN", "CASADMIN"]);
+const ADMIN_ROLES = new Set(["DOI", "COLLEGE_ADMIN", "CHAIRMAN_ADMIN"]);
 
 export default async function DashboardLayout({
   children
@@ -27,7 +27,7 @@ export default async function DashboardLayout({
   const role = (session.user as any).role as keyof typeof ROLE_LABELS | undefined;
   const roleLabel = role ? ROLE_LABELS[role] : undefined;
   const isAdmin = role ? ADMIN_ROLES.has(role) : false;
-  const isFaculty = role === "FACULTY";
+  const isFaculty = role === "INSTRUCTOR";
   const isStudent = role === "STUDENT";
 
   return (
@@ -43,12 +43,62 @@ export default async function DashboardLayout({
           >
             Campus Intelligence
           </Link>
-          {(isAdmin || isFaculty) && (
+          {isStudent && (
             <Link
-              href="/dashboard/timetabling"
+              href="/dashboard/student-schedule"
               className="rounded-md px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800/80"
             >
-              Timetabling & Optimization
+              My Schedule
+            </Link>
+          )}
+          {(isAdmin || isFaculty) && (
+            <>
+              <Link
+                href="/dashboard/schedules"
+                className="rounded-md px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800/80"
+              >
+                Schedule View
+              </Link>
+              <Link
+                href="/dashboard/timetabling"
+                className="rounded-md px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800/80"
+              >
+                Timetabling & Optimization
+              </Link>
+            </>
+          )}
+          {role === "CHAIRMAN_ADMIN" && (
+            <Link
+              href="/dashboard/offerings"
+              className="rounded-md px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800/80"
+            >
+              Subject Offerings
+            </Link>
+          )}
+          {(role === "COLLEGE_ADMIN" || role === "DOI") && (
+            <Link
+              href="/dashboard/drafts"
+              className="rounded-md px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800/80"
+            >
+              Schedule Drafts
+            </Link>
+          )}
+          {role === "COLLEGE_ADMIN" && (
+            <>
+              <Link
+                href="/dashboard/schedule-change-requests"
+                className="rounded-md px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800/80"
+              >
+                Schedule Change Requests
+              </Link>
+            </>
+          )}
+          {role === "DOI" && (
+            <Link
+              href="/dashboard/approvals"
+              className="rounded-md px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800/80"
+            >
+              Approval Queue
             </Link>
           )}
           {isFaculty && (
@@ -59,7 +109,7 @@ export default async function DashboardLayout({
               My Schedule & Requests
             </Link>
           )}
-          {isAdmin && (
+          {(isAdmin || isFaculty || isStudent) && (
             <Link
               href="/dashboard/repository"
               className="rounded-md px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800/80"

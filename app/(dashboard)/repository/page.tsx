@@ -1,19 +1,26 @@
 import { prisma } from "@/lib/prisma";
+import type { RoomType } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/auth.config";
 import { revalidatePath } from "next/cache";
+import { logAudit } from "@/lib/audit";
+import { RepositoryProgramsSearch } from "@/components/repository-programs-search";
+import { RepositorySectionsSearch } from "@/components/repository-sections-search";
+import { RepositoryFacultySearch } from "@/components/repository-faculty-search";
+import { RepositorySubjectsSearch } from "@/components/repository-subjects-search";
+import { RepositoryRoomsSearch } from "@/components/repository-rooms-search";
 
 async function getRepositoryData() {
-  const [majors, sections, faculty, subjects, rooms] = await Promise.all([
-    prisma.major.findMany(),
-    prisma.section.findMany({ include: { major: true } }),
+  const [programs, sections, faculty, subjects, rooms] = await Promise.all([
+    prisma.program.findMany({ include: { college: true } }),
+    prisma.section.findMany({ include: { program: { include: { college: true } } } }),
     prisma.facultyProfile.findMany({
       include: { user: true, canTeach: { include: { subject: true } } }
     }),
     prisma.subject.findMany(),
     prisma.room.findMany()
   ]);
-  return { majors, sections, faculty, subjects, rooms };
+  return { programs, sections, faculty, subjects, rooms };
 }
 
 export default async function RepositoryPage() {
@@ -23,12 +30,15 @@ export default async function RepositoryPage() {
   }
   const role = (session.user as any).role as string | undefined;
   const isAdmin =
-    role === "SUPERSUPERADMIN" ||
-    role === "SUPERADMIN" ||
-    role === "DEPTADMIN" ||
-    role === "CASADMIN";
+    role === "DOI" ||
+    role === "COLLEGE_ADMIN" ||
+    role === "CHAIRMAN_ADMIN";
+  const canViewRepository = isAdmin || role === "INSTRUCTOR" || role === "STUDENT";
+  if (!canViewRepository) throw new Error("Unauthorized");
+  // Only Chairman adds; College Admin and DOI view-only
+  const canAddRepository = role === "CHAIRMAN_ADMIN";
 
-  const { majors, sections, faculty, subjects, rooms } = await getRepositoryData();
+  const { programs, sections, faculty, subjects, rooms } = await getRepositoryData();
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5 text-xs">
@@ -43,24 +53,29 @@ export default async function RepositoryPage() {
       </div>
       <section className="glass-panel rounded-2xl px-4 py-4">
         <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <h2 className="text-sm font-semibold text-slate-100">Majors / Programs</h2>
-          {isAdmin && (
+          <h2 className="text-sm font-semibold text-slate-100">Programs</h2>
+          {canAddRepository && (
             <form
               action={async (formData: FormData) => {
                 "use server";
                 const s = await auth();
                 if (!s?.user) throw new Error("Unauthorized");
                 const role = (s.user as any).role as string | undefined;
-                const isAdminAction =
-                  role === "SUPERSUPERADMIN" ||
-                  role === "SUPERADMIN" ||
-                  role === "DEPTADMIN" ||
-                  role === "CASADMIN";
-                if (!isAdminAction) throw new Error("Forbidden");
+                const canAdd =
+                  role === "CHAIRMAN_ADMIN" || role === "COLLEGE_ADMIN";
+                if (!canAdd) throw new Error("Forbidden");
                 const code = formData.get("code")?.toString() ?? "";
                 const name = formData.get("name")?.toString() ?? "";
-                if (!code || !name) return;
-                await prisma.major.create({ data: { code, name } });
+                const collegeCode = formData.get("collegeCode")?.toString() ?? "";
+                if (!code || !name || !collegeCode) return;
+                const college = await prisma.college.findUnique({
+                  where: { code: collegeCode }
+                });
+                if (!college) return;
+                const p = await prisma.program.create({
+                  data: { code, name, collegeId: college.id }
+                });
+                await logAudit((s.user as any).id, "Program", p.id, "CREATE", `${code} – ${name}`);
                 revalidatePath("/dashboard/repository");
               }}
               className="flex flex-wrap items-center gap-2 text-[11px]"
@@ -75,44 +90,35 @@ export default async function RepositoryPage() {
                 placeholder="Program name"
                 className="h-7 w-40 rounded-md border border-slate-800 bg-slate-950/70 px-2 text-[11px] outline-none focus-visible:border-brand-teal focus-visible:ring-1 focus-visible:ring-brand-teal"
               />
+              <input
+                name="collegeCode"
+                placeholder="College (e.g. COTE)"
+                className="h-7 w-24 rounded-md border border-slate-800 bg-slate-950/70 px-2 text-[11px] outline-none focus-visible:border-brand-teal focus-visible:ring-1 focus-visible:ring-brand-teal"
+              />
               <Button size="sm" variant="outline" className="h-7 px-3 text-[11px]">
                 Add Major
               </Button>
             </form>
           )}
         </div>
-        <div className="space-y-1">
-          {majors.map((m) => (
-            <div key={m.id} className="flex items-center justify-between rounded-md bg-slate-900/60 px-3 py-2">
-              <p className="font-medium text-slate-100">
-                {m.code} · <span className="text-slate-300">{m.name}</span>
-              </p>
-            </div>
-          ))}
-          {majors.length === 0 && (
-            <p className="text-[11px] text-slate-400">No majors yet (seed script will populate BSIT/BIT).</p>
-          )}
-        </div>
+        <RepositoryProgramsSearch items={programs} />
       </section>
 
       <section className="glass-panel rounded-2xl px-4 py-4">
         <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <h2 className="text-sm font-semibold text-slate-100">Sections</h2>
-          {isAdmin && majors.length > 0 && (
+          {canAddRepository && programs.length > 0 && (
             <form
               action={async (formData: FormData) => {
                 "use server";
                 const s = await auth();
                 if (!s?.user) throw new Error("Unauthorized");
                 const role = (s.user as any).role as string | undefined;
-                const isAdminAction =
-                  role === "SUPERSUPERADMIN" ||
-                  role === "SUPERADMIN" ||
-                  role === "DEPTADMIN" ||
-                  role === "CASADMIN";
-                if (!isAdminAction) throw new Error("Forbidden");
+                const canAdd =
+                  role === "CHAIRMAN_ADMIN" || role === "COLLEGE_ADMIN";
+                if (!canAdd) throw new Error("Forbidden");
 
-                const majorId = formData.get("majorId")?.toString() ?? "";
+                const programId = formData.get("programId")?.toString() ?? "";
                 const name = formData.get("name")?.toString() ?? "";
                 const yearLevelStr = formData.get("yearLevel")?.toString() ?? "1";
                 const studentCountStr =
@@ -121,28 +127,29 @@ export default async function RepositoryPage() {
                 const yearLevel = parseInt(yearLevelStr, 10) || 1;
                 const studentCount = parseInt(studentCountStr, 10) || 40;
 
-                if (!majorId || !name) return;
+                if (!programId || !name) return;
 
-                await prisma.section.create({
+                const sec = await prisma.section.create({
                   data: {
-                    majorId,
+                    programId,
                     name,
                     yearLevel,
                     studentCount
                   }
                 });
+                await logAudit((s.user as any).id, "Section", sec.id, "CREATE", `${name} (Year ${yearLevel})`);
                 revalidatePath("/dashboard/repository");
               }}
               className="flex flex-wrap items-center gap-2 text-[11px]"
             >
               <select
-                name="majorId"
+                name="programId"
                 className="h-7 rounded-md border border-slate-800 bg-slate-950/70 px-2 text-[11px] outline-none focus-visible:border-brand-teal focus-visible:ring-1 focus-visible:ring-brand-teal"
-                defaultValue={majors[0].id}
+                defaultValue={programs[0].id}
               >
-                {majors.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.code}
+                {programs.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.code}
                   </option>
                 ))}
               </select>
@@ -167,64 +174,69 @@ export default async function RepositoryPage() {
             </form>
           )}
         </div>
-        <div className="grid gap-2 md:grid-cols-2">
-          {sections.map((s) => (
-            <div key={s.id} className="rounded-md bg-slate-900/60 px-3 py-2">
-              <p className="font-medium text-slate-100">
-                {s.major.code} {s.name} · Year {s.yearLevel}
-              </p>
-              <p className="text-[11px] text-slate-400">
-                Students: {s.studentCount}
-              </p>
-            </div>
-          ))}
-          {sections.length === 0 && (
-            <p className="text-[11px] text-slate-400">No sections yet.</p>
-          )}
-        </div>
+        <RepositorySectionsSearch items={sections} />
       </section>
 
       <section className="glass-panel rounded-2xl px-4 py-4">
         <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <h2 className="text-sm font-semibold text-slate-100">Faculty</h2>
-          {isAdmin && (
+          {canAddRepository && (
             <form
               action={async (formData: FormData) => {
                 "use server";
                 const s = await auth();
                 if (!s?.user) throw new Error("Unauthorized");
                 const role = (s.user as any).role as string | undefined;
-                const isAdminAction =
-                  role === "SUPERSUPERADMIN" ||
-                  role === "SUPERADMIN" ||
-                  role === "DEPTADMIN" ||
-                  role === "CASADMIN";
-                if (!isAdminAction) throw new Error("Forbidden");
+                const canAdd =
+                  role === "CHAIRMAN_ADMIN" || role === "COLLEGE_ADMIN";
+                if (!canAdd) throw new Error("Forbidden");
                 const name = formData.get("name")?.toString() ?? "";
                 const email = formData.get("email")?.toString() ?? "";
                 const bsDegree = formData.get("bsDegree")?.toString() ?? "";
                 const status = formData.get("status")?.toString() || "FULLTIME";
                 if (!name || !email || !bsDegree) return;
-                const bcrypt = await import("bcryptjs");
-                const passwordHash = await bcrypt.hash("password", 10);
-                const user = await prisma.user.create({
-                  data: {
-                    name,
-                    email,
-                    role: "FACULTY",
-                    passwordHash
-                  }
+                const existingUser = await prisma.user.findUnique({
+                  where: { email }
                 });
-                await prisma.facultyProfile.create({
-                  data: {
-                    userId: user.id,
-                    fullName: name,
-                    bsDegree,
-                    msDegree: null,
-                    status,
-                    designation: null
-                  }
+                let userId: string;
+                if (existingUser) {
+                  userId = existingUser.id;
+                } else {
+                  const bcrypt = await import("bcryptjs");
+                  const passwordHash = await bcrypt.hash("password", 10);
+                  const user = await prisma.user.create({
+                    data: {
+                      name,
+                      email,
+                      role: "INSTRUCTOR",
+                      passwordHash
+                    }
+                  });
+                  userId = user.id;
+                  await logAudit(
+                    (s.user as any).id,
+                    "User",
+                    user.id,
+                    "CREATE_FACULTY",
+                    `${name} (${email})`
+                  );
+                }
+
+                const existingProfile = await prisma.facultyProfile.findFirst({
+                  where: { userId }
                 });
+                if (!existingProfile) {
+                  await prisma.facultyProfile.create({
+                    data: {
+                      userId,
+                      fullName: name,
+                      bsDegree,
+                      msDegree: null,
+                      status,
+                      designation: null
+                    }
+                  });
+                }
                 revalidatePath("/dashboard/repository");
               }}
               className="flex flex-wrap items-center gap-2 text-[11px]"
@@ -258,48 +270,28 @@ export default async function RepositoryPage() {
             </form>
           )}
         </div>
-        <div className="grid gap-2 md:grid-cols-2">
-          {faculty.map((f) => (
-            <div key={f.id} className="rounded-md bg-slate-900/60 px-3 py-2">
-              <p className="font-medium text-slate-100">{f.fullName}</p>
-              <p className="text-[11px] text-slate-400">
-                {f.bsDegree}
-                {f.msDegree ? ` · ${f.msDegree}` : ""} · {f.status}
-              </p>
-              {f.canTeach.length > 0 && (
-                <p className="mt-1 text-[11px] text-slate-400">
-                  Subjects: {f.canTeach.map((x) => x.subject.code).join(", ")}
-                </p>
-              )}
-            </div>
-          ))}
-          {faculty.length === 0 && (
-            <p className="text-[11px] text-slate-400">No faculty records yet.</p>
-          )}
-        </div>
+        <RepositoryFacultySearch items={faculty} />
       </section>
 
       <section className="glass-panel rounded-2xl px-4 py-4">
         <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <h2 className="text-sm font-semibold text-slate-100">Subjects</h2>
-          {isAdmin && (
+          {canAddRepository && (
             <form
               action={async (formData: FormData) => {
                 "use server";
                 const s = await auth();
                 if (!s?.user) throw new Error("Unauthorized");
                 const role = (s.user as any).role as string | undefined;
-                const isAdminAction =
-                  role === "SUPERSUPERADMIN" ||
-                  role === "SUPERADMIN" ||
-                  role === "DEPTADMIN" ||
-                  role === "CASADMIN";
-                if (!isAdminAction) throw new Error("Forbidden");
+                const canAdd =
+                  role === "CHAIRMAN_ADMIN" || role === "COLLEGE_ADMIN";
+                if (!canAdd) throw new Error("Forbidden");
                 const code = formData.get("code")?.toString() ?? "";
                 const title = formData.get("title")?.toString() ?? "";
-                const type = formData.get("type")?.toString() || "DEPARTMENTAL";
+                const typeVal = formData.get("type")?.toString() || "DEPARTMENTAL";
+                const type = typeVal === "GEC" ? "GEC" : "DEPARTMENTAL";
                 if (!code || !title) return;
-                await prisma.subject.create({
+                const subj = await prisma.subject.create({
                   data: {
                     code,
                     title,
@@ -311,6 +303,7 @@ export default async function RepositoryPage() {
                     prerequisite: null
                   }
                 });
+                await logAudit((s.user as any).id, "Subject", subj.id, "CREATE", `${code} – ${title}`);
                 revalidatePath("/dashboard/repository");
               }}
               className="flex flex-wrap items-center gap-2 text-[11px]"
@@ -339,61 +332,45 @@ export default async function RepositoryPage() {
             </form>
           )}
         </div>
-        <div className="grid gap-2 md:grid-cols-2">
-          {subjects.map((subj) => (
-            <div key={subj.id} className="rounded-md bg-slate-900/60 px-3 py-2">
-              <p className="font-medium text-slate-100">
-                {subj.code} · <span className="text-slate-300">{subj.title}</span>
-              </p>
-              <p className="text-[11px] text-slate-400">
-                {subj.units} units · Lec {subj.lecHours}h / Lab {subj.labHours}h ·{" "}
-                {subj.type} {subj.college ? `· ${subj.college}` : ""}
-              </p>
-            </div>
-          ))}
-          {subjects.length === 0 && (
-            <p className="text-[11px] text-slate-400">No subjects yet.</p>
-          )}
-        </div>
+        <RepositorySubjectsSearch items={subjects} />
       </section>
 
       <section className="glass-panel rounded-2xl px-4 py-4">
         <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <h2 className="text-sm font-semibold text-slate-100">Rooms</h2>
-          {isAdmin && (
+          {canAddRepository && (
             <form
               action={async (formData: FormData) => {
                 "use server";
                 const s = await auth();
                 if (!s?.user) throw new Error("Unauthorized");
                 const role = (s.user as any).role as string | undefined;
-                const isAdminAction =
-                  role === "SUPERSUPERADMIN" ||
-                  role === "SUPERADMIN" ||
-                  role === "DEPTADMIN" ||
-                  role === "CASADMIN";
-                if (!isAdminAction) throw new Error("Forbidden");
+                const canAdd =
+                  role === "CHAIRMAN_ADMIN" || role === "COLLEGE_ADMIN";
+                if (!canAdd) throw new Error("Forbidden");
 
                 const code = formData.get("code")?.toString() ?? "";
                 const building = formData.get("building")?.toString() ?? "";
                 const floorStr = formData.get("floor")?.toString() ?? "1";
                 const capacityStr = formData.get("capacity")?.toString() ?? "40";
-                const type = formData.get("type")?.toString() || "LECTURE";
+                const typeVal = formData.get("type")?.toString() || "LECTURE";
+                const roomType: RoomType = typeVal === "LAB" ? "LAB" : "LECTURE";
 
                 const floor = parseInt(floorStr, 10) || 1;
                 const capacity = parseInt(capacityStr, 10) || 40;
 
                 if (!code || !building) return;
 
-                await prisma.room.create({
+                const room = await prisma.room.create({
                   data: {
                     code,
                     building,
                     floor,
                     capacity,
-                    type
+                    type: roomType
                   }
                 });
+                await logAudit((s.user as any).id, "Room", room.id, "CREATE", `${code} – ${building}`);
                 revalidatePath("/dashboard/repository");
               }}
               className="flex flex-wrap items-center gap-2 text-[11px]"
@@ -432,21 +409,7 @@ export default async function RepositoryPage() {
             </form>
           )}
         </div>
-        <div className="grid gap-2 md:grid-cols-2">
-          {rooms.map((r) => (
-            <div key={r.id} className="rounded-md bg-slate-900/60 px-3 py-2">
-              <p className="font-medium text-slate-100">
-                {r.code} · <span className="text-slate-300">{r.building}</span>
-              </p>
-              <p className="text-[11px] text-slate-400">
-                Floor {r.floor} · Capacity {r.capacity} · {r.type}
-              </p>
-            </div>
-          ))}
-          {rooms.length === 0 && (
-            <p className="text-[11px] text-slate-400">No rooms yet.</p>
-          )}
-        </div>
+        <RepositoryRoomsSearch items={rooms} />
       </section>
     </div>
   );

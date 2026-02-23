@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth.config";
+import { ActivityFeed } from "@/components/activity-feed";
 
 async function getDashboardStats() {
   const [todaySchedules, conflicts, rooms, usedRooms] = await Promise.all([
@@ -22,6 +24,7 @@ async function getDashboardStats() {
 }
 
 export default async function DashboardPage() {
+  const session = await auth();
   const { todaySchedules, conflicts, roomUtilization } = await getDashboardStats();
 
   return (
@@ -71,13 +74,14 @@ export default async function DashboardPage() {
       </div>
       <div className="glass-panel mt-2 rounded-2xl px-4 py-4 text-xs text-slate-300">
         <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-          Conflict Summary
+          Live Activity (Audit Feed)
         </p>
-        <p className="text-[11px]">
-          Detailed conflict visualization and heatmaps for instructors and rooms
-          will be rendered here using Recharts and calendar views once more sample
-          data is seeded.
-        </p>
+        <ActivityFeed
+          role={(session?.user as any)?.role ?? ""}
+          collegeId={(session?.user as any)?.collegeId ?? null}
+          programId={(session?.user as any)?.programId ?? null}
+          userId={(session?.user as any)?.id ?? null}
+        />
       </div>
     </div>
   );

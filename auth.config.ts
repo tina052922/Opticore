@@ -3,9 +3,10 @@ import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { compare } from "bcryptjs";
 
-// NOTE: For demo, passwords can be seeded as bcrypt hashes.
+// NOTE: For demo, passwords are seeded as bcrypt hashes.
 
 export const { auth, signIn, signOut, handlers } = NextAuth({
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt"
   },
@@ -18,17 +19,19 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
         password: { label: "Password", type: "password" }
       },
       authorize: async (credentials) => {
-        if (!credentials?.email || !credentials.password) return null;
+        const email = credentials?.email;
+        const password = credentials?.password;
+        if (!email || typeof email !== "string" || !password || typeof password !== "string")
+          return null;
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
+          where: { email: email as string }
         });
 
         if (!user) return null;
         if (!user.passwordHash) return null;
 
-        // In seed data, store a bcrypt hash for demo users.
-        const passwordValid = await compare(credentials.password, user.passwordHash);
+        const passwordValid = await compare(password, user.passwordHash);
 
         if (!passwordValid) return null;
 
@@ -37,7 +40,10 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
           email: user.email,
           name: user.name,
           role: user.role,
-          departmentId: user.departmentId
+          department: user.department,
+          collegeId: user.collegeId,
+          programId: user.programId,
+          sectionId: user.sectionId
         } as any;
       }
     })
@@ -45,21 +51,30 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        token.sub = (user as any).id;
         token.role = (user as any).role;
-        token.departmentId = (user as any).departmentId;
+        token.department = (user as any).department;
+        token.collegeId = (user as any).collegeId;
+        token.programId = (user as any).programId;
+        (token as any).sectionId = (user as any).sectionId;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
+        (session.user as any).id = token.sub ?? (token as any).id;
         (session.user as any).role = token.role;
-        (session.user as any).departmentId = token.departmentId;
+        (session.user as any).department = (token as any).department;
+        (session.user as any).collegeId = (token as any).collegeId;
+        (session.user as any).programId = (token as any).programId;
+        (session.user as any).sectionId = (token as any).sectionId;
       }
       return session;
     }
   },
   pages: {
-    signIn: "/login"
+    signIn: "/login",
+    error: "/login"
   }
 });
 

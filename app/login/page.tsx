@@ -87,6 +87,11 @@ export default function LoginPage() {
           >
             {loading ? "Signing in..." : "Sign in"}
           </Button>
+          <p className="text-center text-[11px]">
+            <Link href="/forgot-password" className="text-brand-teal hover:underline">
+              Forgot password?
+            </Link>
+          </p>
         </form>
         <div className="space-y-1 text-center text-[11px] text-slate-400">
           <p>
@@ -99,9 +104,16 @@ export default function LoginPage() {
               href="/register"
               className="font-semibold text-brand-teal hover:underline"
             >
-              Create a student account
+              Register
             </Link>
-            .
+            .{" "}
+            <Link
+              href="/room-locator"
+              className="font-semibold text-brand-teal hover:underline"
+            >
+              Room Locator
+            </Link>{" "}
+            (public)
           </p>
         </div>
       </div>
