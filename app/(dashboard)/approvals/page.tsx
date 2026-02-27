@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { logAudit } from "@/lib/audit";
+import { computeInstructorLoadsForCollegeDraft } from "@/lib/load-policy";
 
 const decisionSchema = z.object({
   draftId: z.string().cuid(),
@@ -51,6 +52,18 @@ export default async function ApprovalsPage() {
     },
     orderBy: { createdAt: "asc" }
   });
+
+  const loadsByCollege: Record<
+    string,
+    Awaited<ReturnType<typeof computeInstructorLoadsForCollegeDraft>>
+  > = {};
+  for (const d of drafts) {
+    if (!d.collegeId || loadsByCollege[d.collegeId]) continue;
+    loadsByCollege[d.collegeId] = await computeInstructorLoadsForCollegeDraft(
+      d.collegeId,
+      period.id
+    );
+  }
 
   async function approveDraft(formData: FormData) {
     "use server";
@@ -168,6 +181,7 @@ export default async function ApprovalsPage() {
                 <th className="px-3 py-2">College</th>
                 <th className="px-3 py-2">Version</th>
                 <th className="px-3 py-2">Recent Comments</th>
+                <th className="px-3 py-2">Load / Overloads</th>
                 <th className="px-3 py-2 text-right">Decision</th>
               </tr>
             </thead>
@@ -187,6 +201,30 @@ export default async function ApprovalsPage() {
                         {c.message}
                       </div>
                     ))}
+                  </td>
+                  <td className="px-3 py-2 text-slate-400">
+                    {d.collegeId &&
+                    loadsByCollege[d.collegeId] &&
+                    loadsByCollege[d.collegeId].length > 0 ? (
+                      <div className="space-y-0.5">
+                        {loadsByCollege[d.collegeId].map((l) => (
+                          <div key={l.instructorId}>
+                            <span
+                              className={
+                                l.overload ? "text-red-300" : "text-emerald-300"
+                              }
+                            >
+                              {l.totalHours.toFixed(1)}h
+                            </span>{" "}
+                            <span className="text-slate-500">
+                              ({l.instructorId})
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-slate-500">No load data</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <form

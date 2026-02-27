@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth.config";
+import { redirect } from "next/navigation";
 import { ActivityFeed } from "@/components/activity-feed";
+
+// Always fetch fresh data when the dashboard is opened (no static cache)
+export const dynamic = "force-dynamic";
 
 async function getDashboardStats() {
   const [todaySchedules, conflicts, rooms, usedRooms] = await Promise.all([
@@ -25,6 +29,12 @@ async function getDashboardStats() {
 
 export default async function DashboardPage() {
   const session = await auth();
+  const role = (session?.user as any)?.role;
+  const programId = (session?.user as any)?.programId;
+  // Chairman Admin with a program: send to their primary dashboard (Subject Offerings)
+  if (role === "CHAIRMAN_ADMIN" && programId) {
+    redirect("/dashboard/offerings");
+  }
   const { todaySchedules, conflicts, roomUtilization } = await getDashboardStats();
 
   return (

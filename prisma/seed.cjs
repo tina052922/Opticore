@@ -122,7 +122,7 @@ async function main() {
   // Users with CTU-specific roles and scoping
   const doi = await prisma.user.upsert({
     where: { email: "doi@ctu.edu.ph" },
-    update: {},
+    update: { passwordHash },
     create: {
       email: "doi@ctu.edu.ph",
       name: "Dean of Instructions",
@@ -133,7 +133,7 @@ async function main() {
 
   const coteAdmin = await prisma.user.upsert({
     where: { email: "cote.admin@ctu.edu.ph" },
-    update: {},
+    update: { passwordHash },
     create: {
       email: "cote.admin@ctu.edu.ph",
       name: "COTE College Admin",
@@ -145,7 +145,7 @@ async function main() {
 
   const casAdmin = await prisma.user.upsert({
     where: { email: "cas.admin@ctu.edu.ph" },
-    update: {},
+    update: { passwordHash },
     create: {
       email: "cas.admin@ctu.edu.ph",
       name: "CAS College Admin",
@@ -157,7 +157,7 @@ async function main() {
 
   const bsitChair = await prisma.user.upsert({
     where: { email: "chair.bsit@ctu.edu.ph" },
-    update: {},
+    update: { passwordHash },
     create: {
       email: "chair.bsit@ctu.edu.ph",
       name: "BSIT Chairman Admin",
@@ -170,7 +170,7 @@ async function main() {
 
   const bitCompTechChair = await prisma.user.upsert({
     where: { email: "chair.bitcomptech@ctu.edu.ph" },
-    update: {},
+    update: { passwordHash },
     create: {
       email: "chair.bitcomptech@ctu.edu.ph",
       name: "BIT-CompTech Chairman Admin",
@@ -183,7 +183,7 @@ async function main() {
 
   const instructor1 = await prisma.user.upsert({
     where: { email: "almirante.a@ctu.edu.ph" },
-    update: {},
+    update: { passwordHash },
     create: {
       email: "almirante.a@ctu.edu.ph",
       name: "Almirante, A",
@@ -196,7 +196,7 @@ async function main() {
 
   const instructor2 = await prisma.user.upsert({
     where: { email: "geldore.jd@ctu.edu.ph" },
-    update: {},
+    update: { passwordHash },
     create: {
       email: "geldore.jd@ctu.edu.ph",
       name: "Geldore, JD",
@@ -217,7 +217,7 @@ async function main() {
 
   const student = await prisma.user.upsert({
     where: { email: "student.bsit3a@ctu.edu.ph" },
-    update: {},
+    update: { passwordHash },
     create: {
       email: "student.bsit3a@ctu.edu.ph",
       name: "BSIT 3A Student",
@@ -646,20 +646,32 @@ async function main() {
     }
   });
 
-  await prisma.facultyCanTeach.createMany({
-    data: [
-      { facultyProfileId: faculty1Profile.id, subjectId: dtech122.id },
-      { facultyProfileId: faculty1Profile.id, subjectId: draw122.id },
-      { facultyProfileId: faculty1Profile.id, subjectId: comp1.id },
-      { facultyProfileId: faculty2Profile.id, subjectId: gecRph.id },
-      { facultyProfileId: faculty2Profile.id, subjectId: psychElfc.id },
-      { facultyProfileId: faculty2Profile.id, subjectId: pathfit.id },
-      { facultyProfileId: faculty3Profile.id, subjectId: ast122.id },
-      { facultyProfileId: faculty4Profile.id, subjectId: comp1.id },
-      { facultyProfileId: faculty5Profile.id, subjectId: dtech122.id }
-    ],
-    skipDuplicates: true
-  });
+  // SQLite doesn't support createMany({ skipDuplicates: true }) in Prisma.
+  // Use upserts against the compound unique key instead so the seed stays idempotent.
+  const canTeachPairs = [
+    { facultyProfileId: faculty1Profile.id, subjectId: dtech122.id },
+    { facultyProfileId: faculty1Profile.id, subjectId: draw122.id },
+    { facultyProfileId: faculty1Profile.id, subjectId: comp1.id },
+    { facultyProfileId: faculty2Profile.id, subjectId: gecRph.id },
+    { facultyProfileId: faculty2Profile.id, subjectId: psychElfc.id },
+    { facultyProfileId: faculty2Profile.id, subjectId: pathfit.id },
+    { facultyProfileId: faculty3Profile.id, subjectId: ast122.id },
+    { facultyProfileId: faculty4Profile.id, subjectId: comp1.id },
+    { facultyProfileId: faculty5Profile.id, subjectId: dtech122.id }
+  ];
+
+  for (const pair of canTeachPairs) {
+    await prisma.facultyCanTeach.upsert({
+      where: {
+        facultyProfileId_subjectId: {
+          facultyProfileId: pair.facultyProfileId,
+          subjectId: pair.subjectId
+        }
+      },
+      update: {},
+      create: pair
+    });
+  }
 
   // Rooms (DT and CT labs – multiple)
   const dtLab1 = await prisma.room.upsert({

@@ -19,20 +19,31 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
         password: { label: "Password", type: "password" }
       },
       authorize: async (credentials) => {
-        const email = credentials?.email;
+        const rawEmail = credentials?.email;
         const password = credentials?.password;
-        if (!email || typeof email !== "string" || !password || typeof password !== "string")
+        if (!rawEmail || typeof rawEmail !== "string" || !password || typeof password !== "string")
           return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: email as string }
-        });
+        const email = rawEmail.trim().toLowerCase();
+        if (!email) return null;
 
-        if (!user) return null;
-        if (!user.passwordHash) return null;
+        let user;
+        try {
+          user = await prisma.user.findUnique({
+            where: { email }
+          });
+        } catch {
+          return null;
+        }
 
-        const passwordValid = await compare(password, user.passwordHash);
+        if (!user?.passwordHash) return null;
 
+        let passwordValid = false;
+        try {
+          passwordValid = await compare(password, user.passwordHash);
+        } catch {
+          return null;
+        }
         if (!passwordValid) return null;
 
         return {

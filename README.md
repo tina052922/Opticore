@@ -93,5 +93,17 @@ You can later adjust room coordinates and paths in:
 - **Strict RBAC** (SuperSuperAdmin, SuperAdmin, DeptAdmin, CASAdmin, Faculty, Student, Guest) will control both UI menus and API/server-actions.
 - The **Room Locator** is always public and QR-accessible; other routes require authentication.
 
-This is an initial, production-oriented draft. Additional modules (full dashboard cards, schedule editor, reporting views, seed data) will be implemented in subsequent iterations of this project. 
+This is an initial, production-oriented draft. Additional modules (full dashboard cards, schedule editor, reporting views, seed data) will be implemented in subsequent iterations of this project.
+
+## Troubleshooting: Updates not reflecting
+
+**Code/UI changes not showing**
+
+- **Clear Next.js cache and restart:** run `npm run dev:fresh` (deletes `.next` and runs `next dev`).
+- **Hard refresh the browser:** `Ctrl+Shift+R` (Windows/Linux) or `Cmd+Shift+R` (Mac) to bypass browser cache.
+
+**Data changes not showing (e.g. new schedules, repository edits)**
+
+- The dashboard is set to always fetch fresh data. If you still see old data, do a full page refresh (F5 or Ctrl+R) or restart the dev server (`Ctrl+C` then `npm run dev`).
+- After creating/updating data in Timetabling, the app uses `revalidatePath`; if the page still shows old data, refresh once. 
 

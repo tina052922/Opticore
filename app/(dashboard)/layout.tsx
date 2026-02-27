@@ -16,6 +16,9 @@ const ROLE_LABELS: Record<string, string> = {
 
 const ADMIN_ROLES = new Set(["DOI", "COLLEGE_ADMIN", "CHAIRMAN_ADMIN"]);
 
+// Ensure all dashboard pages always get fresh data (no static cache)
+export const dynamic = "force-dynamic";
+
 export default async function DashboardLayout({
   children
 }: {
@@ -109,7 +112,7 @@ export default async function DashboardLayout({
               My Schedule & Requests
             </Link>
           )}
-          {(isAdmin || isFaculty || isStudent) && (
+          {(isAdmin || isStudent) && (
             <Link
               href="/dashboard/repository"
               className="rounded-md px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800/80"

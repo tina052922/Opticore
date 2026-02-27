@@ -43,9 +43,16 @@ export default async function OfferingsPage() {
     );
   }
 
-  const [program, subjects, offerings] = await Promise.all([
-    prisma.program.findUnique({ where: { id: programId } }),
+  const program = await prisma.program.findUnique({
+    where: { id: programId }
+  });
+
+  // For Chairman Admin, limit offerings to their own program and
+  // subjects to departmental subjects. We do not filter by college
+  // code here to keep compatibility with existing seed data.
+  const [subjects, offerings] = await Promise.all([
     prisma.subject.findMany({
+      where: { type: "DEPARTMENTAL" },
       orderBy: { code: "asc" }
     }),
     prisma.subjectOffering.findMany({

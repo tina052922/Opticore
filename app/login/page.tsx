@@ -5,6 +5,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -16,6 +17,10 @@ const loginSchema = z.object({
 type LoginValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
+
   const [loading, setLoading] = useState(false);
   const {
     register,
@@ -26,10 +31,22 @@ export default function LoginPage() {
   const onSubmit = async (values: LoginValues) => {
     setLoading(true);
     try {
-      await signIn("credentials", {
+      const result = await signIn("credentials", {
         ...values,
-        callbackUrl: "/dashboard"
+        callbackUrl,
+        redirect: false
       });
+      if (result?.ok && result?.url) {
+        router.push(result.url);
+        router.refresh();
+        return;
+      }
+      if (result?.error) {
+        setLoading(false);
+        return;
+      }
+      router.push(callbackUrl);
+      router.refresh();
     } finally {
       setLoading(false);
     }
@@ -53,11 +70,13 @@ export default function LoginPage() {
         </div>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 text-sm">
           <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-slate-200">
+            <label htmlFor="login-email" className="block text-xs font-medium text-slate-200">
               CTU Email
             </label>
             <input
+              id="login-email"
               type="email"
+              autoComplete="email"
               className="h-10 w-full rounded-md border border-white/10 bg-slate-900/60 px-3 text-sm outline-none ring-0 placeholder:text-slate-500 focus-visible:border-brand-teal focus-visible:ring-2 focus-visible:ring-brand-teal"
               placeholder="you@ctu.edu.ph"
               {...register("email")}
@@ -67,11 +86,13 @@ export default function LoginPage() {
             )}
           </div>
           <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-slate-200">
+            <label htmlFor="login-password" className="block text-xs font-medium text-slate-200">
               Password
             </label>
             <input
+              id="login-password"
               type="password"
+              autoComplete="current-password"
               className="h-10 w-full rounded-md border border-white/10 bg-slate-900/60 px-3 text-sm outline-none ring-0 placeholder:text-slate-500 focus-visible:border-brand-teal focus-visible:ring-2 focus-visible:ring-brand-teal"
               placeholder="••••••••"
               {...register("password")}

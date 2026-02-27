@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { logAudit } from "@/lib/audit";
+import { computeInstructorLoadsForCollegeDraft } from "@/lib/load-policy";
 
 const commentSchema = z.object({
   draftId: z.string().cuid(),
@@ -128,6 +129,19 @@ export default async function DraftsPage() {
       message: formData.get("message")
     });
 
+    // Before forwarding to DOI, compute teaching loads for this college
+    // and require a justification comment if any instructor is overloaded.
+    const loads = await computeInstructorLoadsForCollegeDraft(
+      (session.user as any).collegeId as string,
+      period.id
+    );
+    const overloaded = loads.filter((l) => l.overload);
+    if (overloaded.length > 0 && parsed.message.trim().length < 10) {
+      throw new Error(
+        "One or more instructors exceed the standard load. Please provide a detailed justification in the comment field before sending to DOI."
+      );
+    }
+
     const draft = await prisma.scheduleDraft.update({
       where: { id: parsed.draftId },
       data: {
@@ -146,7 +160,12 @@ export default async function DraftsPage() {
             entity: "ScheduleDraft",
             entityId: parsed.draftId,
             action: "TO_DOI",
-            details: parsed.message
+            details:
+              overloaded.length === 0
+                ? parsed.message
+                : `${parsed.message} | Overload summary: ${overloaded
+                    .map((o) => `${o.instructorId}=${o.totalHours.toFixed(1)}h`)
+                    .join(", ")}`
           }
         }
       }
