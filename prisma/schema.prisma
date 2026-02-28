@@ -8,27 +8,72 @@ datasource db {
 }
 
 model User {
-  id           String                  @id @default(cuid())
-  email        String                  @unique
+  id           String   @id @default(cuid())
+  email        String   @unique
   name         String
   role         Role
   passwordHash String?
-  departmentId String?
-  createdAt    DateTime                @default(now())
-  updatedAt    DateTime                @updatedAt
+  department   String?
+  collegeId    String?
+  programId    String?
+  sectionId    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  college   College? @relation(fields: [collegeId], references: [id])
+  program   Program? @relation(fields: [programId], references: [id])
+  section   Section? @relation(fields: [sectionId], references: [id])
 
   facultyProfile FacultyProfile?
   schedules      Schedule[]
   requests       ScheduleChangeRequest[]
+  teachingAssignments TeachingAssignment[]
+  overloadJustifications OverloadJustification[]
+
+  // Workflow relations
+  createdSubjectOfferings SubjectOffering[]        @relation("CreatedOfferings")
+  subjectOfferingPrefs    SubjectOfferingInstructor[]
+  submittedDrafts         ScheduleDraft[]          @relation("submittedDrafts")
+  approvedDrafts          ScheduleDraft[]          @relation("approvedDrafts")
+  workflowComments        WorkflowComment[]
+  auditLogs               AuditLog[]
+  changeRequests          CrossCollegeChangeRequest[] @relation("RequestedBy")
+  receivedChangeRequests  CrossCollegeChangeRequest[] @relation("ReceivedBy")
+
+  // Draft entries where this user is instructor
+  scheduleEntriesAsInstructor ScheduleEntry[] @relation("EntryInstructor")
 }
 
 enum Role {
-  SUPERSUPERADMIN
-  SUPERADMIN
-  DEPTADMIN
-  CASADMIN
-  FACULTY
+  DOI            // Dean of Instructions (campus-wide)
+  COLLEGE_ADMIN  // One per college (COTE, CAFE, COED, CAS, CHTM)
+  CHAIRMAN_ADMIN // Program/Major chair (e.g., BSIT, BIT-Automotive)
+  INSTRUCTOR     // Teaching faculty
   STUDENT
+  VISITOR        // Guest, map-only access
+}
+
+model College {
+  id       String    @id @default(cuid())
+  code     String    @unique
+  name     String
+  programs Program[]
+  users    User[]
+
+  scheduleDrafts ScheduleDraft[]
+}
+
+model Program {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  name      String
+  collegeId String
+  college   College   @relation(fields: [collegeId], references: [id])
+
+  sections  Section[]
+  users     User[]
+
+   subjectOfferings SubjectOffering[]
 }
 
 model FacultyProfile {
@@ -38,9 +83,18 @@ model FacultyProfile {
   fullName         String
   bsDegree         String
   msDegree         String?
+  phdDegree        String?
   status           String
   designation      String?
+  rank             FacultyRank
+  experience       Int?     // years of relevant experience
+  trainingHours    Int?     // relevant training hours
+  eligibility      String?  // RA 1080, etc.
+  hourlyRate      Float    // based on qualification
+  standardLoad     Int      @default(24) // units per semester
+  maxPreparations  Int      @default(3)  // max prep hours
   canTeach         FacultyCanTeach[]
+  teachingAssignments TeachingAssignment[]
 }
 
 // SQLite does not support primitive arrays (String[]). Use a join table instead.
@@ -56,23 +110,20 @@ model FacultyCanTeach {
   @@unique([facultyProfileId, subjectId])
 }
 
-model Major {
-  id       String    @id @default(cuid())
-  code     String    @unique
-  name     String
-  sections Section[]
-}
-
 model Section {
   id           String    @id @default(cuid())
-  majorId      String
-  major        Major     @relation(fields: [majorId], references: [id])
+  programId    String
+  program      Program   @relation(fields: [programId], references: [id])
   name         String
   yearLevel    Int
   studentCount Int       @default(40)
   schedules    Schedule[]
 
-  @@unique([majorId, name])
+  @@unique([programId, name])
+
+  draftEntries ScheduleEntry[]
+  students     User[]
+  teachingAssignments TeachingAssignment[]
 }
 
 model Subject {
@@ -82,16 +133,63 @@ model Subject {
   units        Float
   lecHours     Float
   labHours     Float
+  totalHours   Float
   type         SubjectType
+  category     SubjectCategory @default(DEPARTMENTAL)
   college      String?
   prerequisite String?
+  yearLevel    Int?         // 1, 2, 3, 4
+  semester     String?      // "1st", "2nd"
+  curriculum   String?      // curriculum version/year
   schedules    Schedule[]
   canBeTaughtBy FacultyCanTeach[]
+  offerings    SubjectOffering[]
+  draftEntries ScheduleEntry[]
+  teachingAssignments TeachingAssignment[]
 }
 
 enum SubjectType {
   GEC
   DEPARTMENTAL
+}
+
+enum SubjectCategory {
+  GEC           // General Education Courses
+  GEE           // General Education Electives
+  DEPARTMENTAL  // Department-specific courses
+  MAJOR         // Major courses
+  IM            // Industrial Management
+  PELEC         // Professional Elective
+  AP            // Applied Course
+  PC            // Professional Course
+  CC            // Computing Course
+  PATHFIT       // Physical Education
+  NSTP          // National Service Training
+  OJT           // On-the-Job Training
+  RESEARCH      // Research/Capstone
+  FoLA          // Foreign Language
+}
+
+enum FacultyRank {
+  INSTRUCTOR_I
+  INSTRUCTOR_II
+  INSTRUCTOR_III
+  ASSISTANT_PROFESSOR_I
+  ASSISTANT_PROFESSOR_II
+  ASSISTANT_PROFESSOR_III
+  ASSISTANT_PROFESSOR_IV
+  ASSOCIATE_PROFESSOR_I
+  ASSOCIATE_PROFESSOR_II
+  ASSOCIATE_PROFESSOR_III
+  ASSOCIATE_PROFESSOR_IV
+  ASSOCIATE_PROFESSOR_V
+  PROFESSOR_I
+  PROFESSOR_II
+  PROFESSOR_III
+  PROFESSOR_IV
+  PROFESSOR_V
+  PROFESSOR_VI
+  UNIVERSITY_PROFESSOR
 }
 
 model Room {
@@ -102,6 +200,8 @@ model Room {
   capacity  Int
   type      RoomType
   schedules Schedule[]
+
+  draftEntries ScheduleEntry[]
 }
 
 enum RoomType {
@@ -127,6 +227,7 @@ model Schedule {
   academicYear String
 
   changeRequests ScheduleChangeRequest[]
+  crossCollegeRequests CrossCollegeChangeRequest[]
 }
 
 enum DayOfWeek {
@@ -143,6 +244,142 @@ enum ScheduleStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+// Academic periods (e.g., 1st Sem 2025–2026)
+model AcademicPeriod {
+  id           String          @id @default(cuid())
+  name         String
+  semester     String
+  academicYear String
+  isCurrent    Boolean         @default(false)
+
+  subjectOfferings SubjectOffering[]
+  scheduleDrafts   ScheduleDraft[]
+}
+
+// Chairman Admin subject offerings for a program/major in a given period
+model SubjectOffering {
+  id               String          @id @default(cuid())
+  programId        String
+  academicPeriodId String
+  subjectId        String
+  createdById      String
+
+  estimatedSections        Int      @default(1)
+  estimatedStudentsPerSection Int   @default(40)
+
+  preferredDays      String?       // e.g. "MONDAY,WEDNESDAY"
+  preferredTimeOfDay String?       // e.g. "MORNING", "AFTERNOON"
+  preferredRoomType  RoomType?
+
+  program        Program        @relation(fields: [programId], references: [id])
+  academicPeriod AcademicPeriod @relation(fields: [academicPeriodId], references: [id])
+  subject        Subject        @relation(fields: [subjectId], references: [id])
+  createdBy      User           @relation("CreatedOfferings", fields: [createdById], references: [id])
+
+  preferredInstructors SubjectOfferingInstructor[]
+}
+
+// Join table: preferred instructors per offering
+model SubjectOfferingInstructor {
+  id               String          @id @default(cuid())
+  subjectOfferingId String
+  instructorId     String
+
+  subjectOffering SubjectOffering @relation(fields: [subjectOfferingId], references: [id], onDelete: Cascade)
+  instructor      User            @relation(fields: [instructorId], references: [id])
+
+  @@unique([subjectOfferingId, instructorId])
+}
+
+// College-level schedule draft with workflow states
+model ScheduleDraft {
+  id               String             @id @default(cuid())
+  collegeId        String
+  academicPeriodId String
+  version          Int                @default(1)
+  status           ScheduleDraftStatus @default(DRAFT)
+
+  submittedById String?
+  approvedById  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  college        College        @relation(fields: [collegeId], references: [id])
+  academicPeriod AcademicPeriod @relation(fields: [academicPeriodId], references: [id])
+  submittedBy    User?          @relation("submittedDrafts", fields: [submittedById], references: [id])
+  approvedBy     User?          @relation("approvedDrafts", fields: [approvedById], references: [id])
+
+  entries   ScheduleEntry[]
+  comments  WorkflowComment[]
+  auditLogs AuditLog[]
+}
+
+enum ScheduleDraftStatus {
+  DRAFT
+  CAS_REVIEW
+  DOI_REVIEW
+  RETURNED
+  APPROVED
+  PUBLISHED
+}
+
+// Individual entries within a draft (conflict-aware, before publishing)
+model ScheduleEntry {
+  id         String   @id @default(cuid())
+  draftId    String
+  subjectId  String
+  instructorId String
+  sectionId  String
+  roomId     String
+  day        DayOfWeek
+  startTime  String
+  endTime    String
+
+  draft      ScheduleDraft @relation(fields: [draftId], references: [id])
+  subject    Subject       @relation(fields: [subjectId], references: [id])
+  instructor User          @relation("EntryInstructor", fields: [instructorId], references: [id])
+  section    Section       @relation(fields: [sectionId], references: [id])
+  room       Room          @relation(fields: [roomId], references: [id])
+}
+
+// Comments required on every forward/return in the workflow
+model WorkflowComment {
+  id        String         @id @default(cuid())
+  draftId   String
+  authorId  String
+  action    WorkflowAction
+  message   String
+  createdAt DateTime       @default(now())
+
+  draft  ScheduleDraft @relation(fields: [draftId], references: [id])
+  author User          @relation(fields: [authorId], references: [id])
+}
+
+enum WorkflowAction {
+  TO_CAS
+  TO_DOI
+  RETURN_TO_COLLEGE
+  RETURN_TO_CAS
+  APPROVE
+  PUBLISH
+}
+
+// Simple audit log for schedule-related changes
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  draftId   String?
+  entity    String   // e.g. "ScheduleDraft", "ScheduleEntry", "SubjectOffering"
+  entityId  String
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+
+  user  User          @relation(fields: [userId], references: [id])
+  draft ScheduleDraft? @relation(fields: [draftId], references: [id])
 }
 
 model ScheduleChangeRequest {
@@ -162,5 +399,133 @@ enum RequestStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+// Teaching Assignment with load tracking
+model TeachingAssignment {
+  id                String   @id @default(cuid())
+  instructorId      String
+  instructor        User     @relation(fields: [instructorId], references: [id])
+  subjectId         String
+  subject           Subject  @relation(fields: [subjectId], references: [id])
+  sectionId         String
+  section           Section  @relation(fields: [sectionId], references: [id])
+  semester          String
+  academicYear      String
+  assignedUnits     Float
+  lectureHours      Float
+  labHours          Float
+  totalHours        Float
+  preparationHours  Int      @default(1)
+  isOverload        Boolean  @default(false)
+  status            AssignmentStatus @default(ASSIGNED)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  facultyProfile    FacultyProfile? @relation(fields: [instructorId], references: [userId])
+
+  @@unique([instructorId, subjectId, sectionId, semester, academicYear])
+}
+
+// Overload Justification System
+model OverloadJustification {
+  id            String     @id @default(cuid())
+  instructorId  String
+  instructor    User       @relation(fields: [instructorId], references: [id])
+  semester      String
+  academicYear  String
+  totalUnits    Float      // actual assigned units
+  standardLoad  Float      // standard load (usually 24)
+  excessUnits   Float      // units over standard
+  justification String     // mandatory justification text
+  supportingDoc String?    // document reference
+  status        JustificationStatus @default(PENDING)
+  requestedBy   String     // who requested the overload
+  approvedBy    String?    // who approved (DOI/VPAA)
+  approvedAt    DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+// Cross-College Change Request System
+model CrossCollegeChangeRequest {
+  id          String     @id @default(cuid())
+  requestedBy String     // College Admin making request
+  requester   User       @relation("RequestedBy", fields: [requestedBy], references: [id])
+  receivedBy  String     // Target College Admin
+  receiver    User       @relation("ReceivedBy", fields: [receivedBy], references: [id])
+  
+  // Request details
+  scheduleId  String?
+  schedule    Schedule?  @relation(fields: [scheduleId], references: [id])
+  changeType  ChangeType
+  
+  // What needs to be changed
+  subjectCode String?
+  sectionName String?
+  roomCode    String?
+  timeSlot    String?
+  instructor  String?
+  
+  // Request details
+  reason      String
+  urgency     UrgencyLevel @default(NORMAL)
+  proposedSolution String?
+  
+  // Conflict checking results
+  hasConflicts Boolean    @default(false)
+  conflictDetails String?
+  
+  status      ChangeRequestStatus @default(PENDING)
+  response    String?
+  respondedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+enum AssignmentStatus {
+  ASSIGNED
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum JustificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REQUIRE_RESUBMISSION
+}
+
+enum ChangeType {
+  ROOM_CHANGE
+  TIME_CHANGE
+  INSTRUCTOR_CHANGE
+  SCHEDULE_CONFLICT
+  CROSS_COLLEGE_INTEGRATION
+}
+
+enum UrgencyLevel {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum ChangeRequestStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  REQUIRE_CLARIFICATION
+  IMPLEMENTED
 }
 

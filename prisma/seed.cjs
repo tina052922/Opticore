@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-// Simple Prisma seed script for OptiCore (SQLite).
+// Simple Prisma seed script for OptiCore (PostgreSQL).
 // NOTE: Replace demo data with full CTU–Argao lists from your capstone docs.
 
 const { PrismaClient, Role, SubjectType, RoomType, DayOfWeek } = require("@prisma/client");
@@ -12,36 +12,133 @@ async function main() {
 
   const passwordHash = await bcrypt.hash("password", 10);
 
-  // Users with roles
-  const superSuperAdmin = await prisma.user.upsert({
-    where: { email: "supersuperadmin@ctu.edu.ph" },
+  // Core colleges
+  const cote = await prisma.college.upsert({
+    where: { code: "COTE" },
     update: {},
     create: {
-      email: "supersuperadmin@ctu.edu.ph",
-      name: "CTU SuperSuper Admin",
-      role: Role.SUPERSUPERADMIN,
+      code: "COTE",
+      name: "College of Technology"
+    }
+  });
+
+  const cafe = await prisma.college.upsert({
+    where: { code: "CAFE" },
+    update: {},
+    create: {
+      code: "CAFE",
+      name: "College of Agriculture and Food Engineering"
+    }
+  });
+
+  const coed = await prisma.college.upsert({
+    where: { code: "COED" },
+    update: {},
+    create: {
+      code: "COED",
+      name: "College of Education"
+    }
+  });
+
+  const cas = await prisma.college.upsert({
+    where: { code: "CAS" },
+    update: {},
+    create: {
+      code: "CAS",
+      name: "College of Arts and Sciences"
+    }
+  });
+
+  const chtm = await prisma.college.upsert({
+    where: { code: "CHTM" },
+    update: {},
+    create: {
+      code: "CHTM",
+      name: "College of Hospitality and Tourism Management"
+    }
+  });
+
+  // Programs / majors
+  const bsit = await prisma.program.upsert({
+    where: { code: "BSIT" },
+    update: {},
+    create: {
+      code: "BSIT",
+      name: "Bachelor of Science in Information Technology",
+      collegeId: cote.id
+    }
+  });
+
+  const bsie = await prisma.program.upsert({
+    where: { code: "BSIE" },
+    update: {},
+    create: {
+      code: "BSIE",
+      name: "Bachelor of Science in Industrial Education",
+      collegeId: cote.id
+    }
+  });
+
+  const bitAuto = await prisma.program.upsert({
+    where: { code: "BIT-AUTO" },
+    update: {},
+    create: {
+      code: "BIT-AUTO",
+      name: "Bachelor of Industrial Technology - Automotive",
+      collegeId: cote.id
+    }
+  });
+
+  const bitGarments = await prisma.program.upsert({
+    where: { code: "BIT-GARM" },
+    update: {},
+    create: {
+      code: "BIT-GARM",
+      name: "Bachelor of Industrial Technology - Garments",
+      collegeId: cote.id
+    }
+  });
+
+  const bitCompTech = await prisma.program.upsert({
+    where: { code: "BIT-COMPTECH" },
+    update: {},
+    create: {
+      code: "BIT-COMPTECH",
+      name: "Bachelor of Industrial Technology - Computer Technology",
+      collegeId: cote.id
+    }
+  });
+
+  const casGec = await prisma.program.upsert({
+    where: { code: "CAS-GEC" },
+    update: {},
+    create: {
+      code: "CAS-GEC",
+      name: "CAS General Education Courses",
+      collegeId: cas.id
+    }
+  });
+
+  // Users with CTU-specific roles and scoping
+  const doi = await prisma.user.upsert({
+    where: { email: "doi@ctu.edu.ph" },
+    update: {},
+    create: {
+      email: "doi@ctu.edu.ph",
+      name: "Dean of Instructions",
+      role: Role.DOI,
       passwordHash
     }
   });
 
-  const superAdmin = await prisma.user.upsert({
-    where: { email: "superadmin@ctu.edu.ph" },
+  const coteAdmin = await prisma.user.upsert({
+    where: { email: "cote.admin@ctu.edu.ph" },
     update: {},
     create: {
-      email: "superadmin@ctu.edu.ph",
-      name: "CTU College SuperAdmin (G. Tangaro)",
-      role: Role.SUPERADMIN,
-      passwordHash
-    }
-  });
-
-  const deptAdmin = await prisma.user.upsert({
-    where: { email: "bsit.admin@ctu.edu.ph" },
-    update: {},
-    create: {
-      email: "bsit.admin@ctu.edu.ph",
-      name: "BSIT Department Admin (R. Albacite)",
-      role: Role.DEPTADMIN,
+      email: "cote.admin@ctu.edu.ph",
+      name: "COTE College Admin",
+      role: Role.COLLEGE_ADMIN,
+      collegeId: cote.id,
       passwordHash
     }
   });
@@ -51,66 +148,72 @@ async function main() {
     update: {},
     create: {
       email: "cas.admin@ctu.edu.ph",
-      name: "CAS Admin (J.D. Geldore)",
-      role: Role.CASADMIN,
+      name: "CAS College Admin",
+      role: Role.COLLEGE_ADMIN,
+      collegeId: cas.id,
       passwordHash
     }
   });
 
-  const faculty1 = await prisma.user.upsert({
+  const bsitChair = await prisma.user.upsert({
+    where: { email: "chair.bsit@ctu.edu.ph" },
+    update: {},
+    create: {
+      email: "chair.bsit@ctu.edu.ph",
+      name: "BSIT Chairman Admin",
+      role: Role.CHAIRMAN_ADMIN,
+      collegeId: cote.id,
+      programId: bsit.id,
+      passwordHash
+    }
+  });
+
+  const bitCompTechChair = await prisma.user.upsert({
+    where: { email: "chair.bitcomptech@ctu.edu.ph" },
+    update: {},
+    create: {
+      email: "chair.bitcomptech@ctu.edu.ph",
+      name: "BIT-CompTech Chairman Admin",
+      role: Role.CHAIRMAN_ADMIN,
+      collegeId: cote.id,
+      programId: bitCompTech.id,
+      passwordHash
+    }
+  });
+
+  const instructor1 = await prisma.user.upsert({
     where: { email: "almirante.a@ctu.edu.ph" },
     update: {},
     create: {
       email: "almirante.a@ctu.edu.ph",
       name: "Almirante, A",
-      role: Role.FACULTY,
+      role: Role.INSTRUCTOR,
+      collegeId: cote.id,
+      programId: bsit.id,
       passwordHash
     }
   });
 
-  const faculty2 = await prisma.user.upsert({
-    where: { email: "albarracin.cs@ctu.edu.ph" },
+  const instructor2 = await prisma.user.upsert({
+    where: { email: "geldore.jd@ctu.edu.ph" },
     update: {},
     create: {
-      email: "albarracin.cs@ctu.edu.ph",
-      name: "Albarracin, CS",
-      role: Role.FACULTY,
+      email: "geldore.jd@ctu.edu.ph",
+      name: "Geldore, JD",
+      role: Role.INSTRUCTOR,
+      collegeId: cas.id,
+      programId: casGec.id,
       passwordHash
     }
   });
 
-  const faculty3 = await prisma.user.upsert({
-    where: { email: "gealon.c@ctu.edu.ph" },
-    update: {},
-    create: {
-      email: "gealon.c@ctu.edu.ph",
-      name: "Gealon, C",
-      role: Role.FACULTY,
-      passwordHash
-    }
-  });
-
-  const faculty4 = await prisma.user.upsert({
-    where: { email: "abapo.i@ctu.edu.ph" },
-    update: {},
-    create: {
-      email: "abapo.i@ctu.edu.ph",
-      name: "Abapo, I",
-      role: Role.FACULTY,
-      passwordHash
-    }
-  });
-
-  const faculty5 = await prisma.user.upsert({
-    where: { email: "otadoy.e@ctu.edu.ph" },
-    update: {},
-    create: {
-      email: "otadoy.e@ctu.edu.ph",
-      name: "Otadoy, E",
-      role: Role.FACULTY,
-      passwordHash
-    }
-  });
+  // Aliases to match existing demo data below
+  // (chairs/admins can still have teaching profiles in this seed)
+  const faculty1 = instructor1;
+  const faculty2 = instructor2;
+  const faculty3 = coteAdmin;
+  const faculty4 = bsitChair;
+  const faculty5 = bitCompTechChair;
 
   const student = await prisma.user.upsert({
     where: { email: "student.bsit3a@ctu.edu.ph" },
@@ -119,35 +222,50 @@ async function main() {
       email: "student.bsit3a@ctu.edu.ph",
       name: "BSIT 3A Student",
       role: Role.STUDENT,
-      passwordHash: null
+      collegeId: cote.id,
+      programId: bsit.id,
+      passwordHash
     }
   });
 
-  // Majors & sections (extended using your examples)
-  const bsit = await prisma.major.upsert({
-    where: { code: "BSIT" },
-    update: {},
+  const visitor = await prisma.user.upsert({
+    where: { email: "visitor@ctu.edu.ph" },
+    update: { passwordHash },
     create: {
-      code: "BSIT",
-      name: "Bachelor of Science in Information Technology"
+      email: "visitor@ctu.edu.ph",
+      name: "Campus Visitor",
+      role: Role.VISITOR,
+      passwordHash
     }
   });
 
-  const bit = await prisma.major.upsert({
-    where: { code: "BIT" },
-    update: {},
+  // Academic period (current)
+  const currentPeriod = await prisma.academicPeriod.upsert({
+    where: {
+      // simple fixed key
+      id: "CURRENT_PERIOD_1"
+    },
+    update: {
+      name: "1st Semester 2025-2026",
+      semester: "1st",
+      academicYear: "2025-2026",
+      isCurrent: true
+    },
     create: {
-      code: "BIT",
-      name: "Bachelor of Industrial Technology"
+      id: "CURRENT_PERIOD_1",
+      name: "1st Semester 2025-2026",
+      semester: "1st",
+      academicYear: "2025-2026",
+      isCurrent: true
     }
   });
 
-  // BSIT 1A–4A and 1B–4B
+  // BSIT 1A–4A and 1B–4B (sections now tied to Program)
   const bsit1a = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bsit.id, name: "1A" } },
+    where: { programId_name: { programId: bsit.id, name: "1A" } },
     update: {},
     create: {
-      majorId: bsit.id,
+      programId: bsit.id,
       name: "1A",
       yearLevel: 1,
       studentCount: 40
@@ -155,10 +273,10 @@ async function main() {
   });
 
   const bsit1b = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bsit.id, name: "1B" } },
+    where: { programId_name: { programId: bsit.id, name: "1B" } },
     update: {},
     create: {
-      majorId: bsit.id,
+      programId: bsit.id,
       name: "1B",
       yearLevel: 1,
       studentCount: 40
@@ -166,10 +284,10 @@ async function main() {
   });
 
   const bsit2a = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bsit.id, name: "2A" } },
+    where: { programId_name: { programId: bsit.id, name: "2A" } },
     update: {},
     create: {
-      majorId: bsit.id,
+      programId: bsit.id,
       name: "2A",
       yearLevel: 2,
       studentCount: 40
@@ -177,10 +295,10 @@ async function main() {
   });
 
   const bsit2b = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bsit.id, name: "2B" } },
+    where: { programId_name: { programId: bsit.id, name: "2B" } },
     update: {},
     create: {
-      majorId: bsit.id,
+      programId: bsit.id,
       name: "2B",
       yearLevel: 2,
       studentCount: 40
@@ -188,21 +306,27 @@ async function main() {
   });
 
   const bsit3a = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bsit.id, name: "3A" } },
+    where: { programId_name: { programId: bsit.id, name: "3A" } },
     update: {},
     create: {
-      majorId: bsit.id,
+      programId: bsit.id,
       name: "3A",
       yearLevel: 3,
       studentCount: 35
     }
   });
 
+  // Link demo student to BSIT 3A section for personal timetable
+  await prisma.user.update({
+    where: { email: "student.bsit3a@ctu.edu.ph" },
+    data: { sectionId: bsit3a.id }
+  });
+
   const bsit3b = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bsit.id, name: "3B" } },
+    where: { programId_name: { programId: bsit.id, name: "3B" } },
     update: {},
     create: {
-      majorId: bsit.id,
+      programId: bsit.id,
       name: "3B",
       yearLevel: 3,
       studentCount: 32
@@ -210,10 +334,10 @@ async function main() {
   });
 
   const bsit4a = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bsit.id, name: "4A" } },
+    where: { programId_name: { programId: bsit.id, name: "4A" } },
     update: {},
     create: {
-      majorId: bsit.id,
+      programId: bsit.id,
       name: "4A",
       yearLevel: 4,
       studentCount: 40
@@ -221,22 +345,22 @@ async function main() {
   });
 
   const bsit4b = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bsit.id, name: "4B" } },
+    where: { programId_name: { programId: bsit.id, name: "4B" } },
     update: {},
     create: {
-      majorId: bsit.id,
+      programId: bsit.id,
       name: "4B",
       yearLevel: 4,
       studentCount: 40
     }
   });
 
-  // BIT 1A–4B
+  // BIT-AUTO 1A–4B
   const bit1a = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bit.id, name: "1A" } },
+    where: { programId_name: { programId: bitAuto.id, name: "1A" } },
     update: {},
     create: {
-      majorId: bit.id,
+      programId: bitAuto.id,
       name: "1A",
       yearLevel: 1,
       studentCount: 40
@@ -244,10 +368,10 @@ async function main() {
   });
 
   const bit1b = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bit.id, name: "1B" } },
+    where: { programId_name: { programId: bitAuto.id, name: "1B" } },
     update: {},
     create: {
-      majorId: bit.id,
+      programId: bitAuto.id,
       name: "1B",
       yearLevel: 1,
       studentCount: 40
@@ -255,10 +379,10 @@ async function main() {
   });
 
   const bit2a = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bit.id, name: "2A" } },
+    where: { programId_name: { programId: bitAuto.id, name: "2A" } },
     update: {},
     create: {
-      majorId: bit.id,
+      programId: bitAuto.id,
       name: "2A",
       yearLevel: 2,
       studentCount: 40
@@ -266,10 +390,10 @@ async function main() {
   });
 
   const bit2b = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bit.id, name: "2B" } },
+    where: { programId_name: { programId: bitAuto.id, name: "2B" } },
     update: {},
     create: {
-      majorId: bit.id,
+      programId: bitAuto.id,
       name: "2B",
       yearLevel: 2,
       studentCount: 40
@@ -277,10 +401,10 @@ async function main() {
   });
 
   const bit3a = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bit.id, name: "3A" } },
+    where: { programId_name: { programId: bitAuto.id, name: "3A" } },
     update: {},
     create: {
-      majorId: bit.id,
+      programId: bitAuto.id,
       name: "3A",
       yearLevel: 3,
       studentCount: 40
@@ -288,10 +412,10 @@ async function main() {
   });
 
   const bit3b = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bit.id, name: "3B" } },
+    where: { programId_name: { programId: bitAuto.id, name: "3B" } },
     update: {},
     create: {
-      majorId: bit.id,
+      programId: bitAuto.id,
       name: "3B",
       yearLevel: 3,
       studentCount: 40
@@ -299,10 +423,10 @@ async function main() {
   });
 
   const bit4a = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bit.id, name: "4A" } },
+    where: { programId_name: { programId: bitAuto.id, name: "4A" } },
     update: {},
     create: {
-      majorId: bit.id,
+      programId: bitAuto.id,
       name: "4A",
       yearLevel: 4,
       studentCount: 40
@@ -310,10 +434,10 @@ async function main() {
   });
 
   const bit4b = await prisma.section.upsert({
-    where: { majorId_name: { majorId: bit.id, name: "4B" } },
+    where: { programId_name: { programId: bitAuto.id, name: "4B" } },
     update: {},
     create: {
-      majorId: bit.id,
+      programId: bitAuto.id,
       name: "4B",
       yearLevel: 4,
       studentCount: 40
@@ -533,8 +657,7 @@ async function main() {
       { facultyProfileId: faculty3Profile.id, subjectId: ast122.id },
       { facultyProfileId: faculty4Profile.id, subjectId: comp1.id },
       { facultyProfileId: faculty5Profile.id, subjectId: dtech122.id }
-    ],
-    skipDuplicates: true
+    ]
   });
 
   // Rooms (DT and CT labs – multiple)
@@ -596,6 +719,49 @@ async function main() {
       capacity: 40,
       type: RoomType.LAB
     }
+  });
+
+  const cl1 = await prisma.room.upsert({
+    where: { code: "CL1" },
+    update: {},
+    create: { code: "CL1", building: "Main", floor: 1, capacity: 40, type: RoomType.LECTURE }
+  });
+  const cl3 = await prisma.room.upsert({
+    where: { code: "CL3" },
+    update: {},
+    create: { code: "CL3", building: "Main", floor: 1, capacity: 40, type: RoomType.LECTURE }
+  });
+  const cl4 = await prisma.room.upsert({
+    where: { code: "CL4" },
+    update: {},
+    create: { code: "CL4", building: "Main", floor: 1, capacity: 40, type: RoomType.LECTURE }
+  });
+  const st202 = await prisma.room.upsert({
+    where: { code: "ST 202" },
+    update: {},
+    create: { code: "ST 202", building: "ST", floor: 2, capacity: 40, type: RoomType.LECTURE }
+  });
+
+  // BSIT department labs (auto-seed)
+  await prisma.room.upsert({
+    where: { code: "IT LAB 1" },
+    update: {},
+    create: { code: "IT LAB 1", building: "BSIT", floor: 1, capacity: 40, type: RoomType.LAB }
+  });
+  await prisma.room.upsert({
+    where: { code: "IT LAB 2" },
+    update: {},
+    create: { code: "IT LAB 2", building: "BSIT", floor: 1, capacity: 40, type: RoomType.LAB }
+  });
+  await prisma.room.upsert({
+    where: { code: "IT LAB 3" },
+    update: {},
+    create: { code: "IT LAB 3", building: "BSIT", floor: 2, capacity: 40, type: RoomType.LAB }
+  });
+  await prisma.room.upsert({
+    where: { code: "IT LAB 4" },
+    update: {},
+    create: { code: "IT LAB 4", building: "BSIT", floor: 2, capacity: 40, type: RoomType.LAB }
   });
 
   // Sample schedules using predefined slots (07:00–12:00, 12:00–17:00, 17:00–21:00)

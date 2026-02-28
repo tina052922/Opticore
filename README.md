@@ -69,7 +69,7 @@ The seed script will insert:
 npm run dev
 ```
 
-Open `http://localhost:3000` in your browser.
+Open `http://localhost:3000` in your browser. After seeding, sign in with any seed user; password for all is **`password`** (e.g. `doi@ctu.edu.ph`). See **SETUP.md** for the full list of test accounts.
 
 ## Campus Map Image
 

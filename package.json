@@ -4,15 +4,19 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:fresh": "npm run clean && next dev",
+    "clean": "node -e \"try{require('fs').rmSync('.next',{recursive:true,force:true});console.log('Cleaned .next')}catch(e){}\"",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "prisma:fix-migrations": "node prisma/remove-empty-migrations.js"
   },
   "prisma": {
-    "seed": "node prisma/seed.cjs"
+    "seed": "node prisma/seed-comprehensive.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -43,6 +47,8 @@
     "react-hook-form": "^7.53.0",
     "react-leaflet": "^4.2.1",
     "recharts": "^2.12.7",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "sonner": "^1.5.0",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",

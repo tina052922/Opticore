@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ const CampusMap = dynamic(() => import("@/components/room-locator/campus-map"), 
   ssr: false
 });
 
-export default function RoomLocatorPage() {
+function RoomLocatorContent() {
   const searchParams = useSearchParams();
   const initialRoom = searchParams.get("room") ?? "";
   const [roomQuery, setRoomQuery] = useState(initialRoom);
@@ -66,5 +67,17 @@ export default function RoomLocatorPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function RoomLocatorPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-6">
+        <p className="text-sm text-slate-400">Loading room locator…</p>
+      </div>
+    }>
+      <RoomLocatorContent />
+    </Suspense>
   );
 }
