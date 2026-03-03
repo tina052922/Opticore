@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import ReportsClient from "./reports-client";
-import ComprehensiveReports from "./comprehensive-reports";
 import { Prisma } from "@prisma/client";
 
 async function getReportData(): Promise<{
@@ -124,8 +123,7 @@ async function getReportData(): Promise<{
 }
 
 export default async function ReportsPage() {
-  // For now, use the comprehensive reports component
-  // The legacy ReportsClient can be accessed via a toggle if needed
-  return <ComprehensiveReports />;
+  const data = await getReportData();
+  return <ReportsClient data={data} />;
 }
 

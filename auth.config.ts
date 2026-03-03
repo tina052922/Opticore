@@ -1,7 +1,5 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { prisma } from "@/lib/prisma";
-import { compare } from "bcryptjs";
 
 // Auth.js requires a secret. Use AUTH_SECRET; in dev only, fallback so the app doesn't crash.
 const authSecret =
@@ -31,20 +29,28 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
         password: { label: "Password", type: "password" }
       },
       authorize: async (credentials) => {
-        const email = credentials?.email;
+        const emailRaw = credentials?.email;
         const password = credentials?.password;
-        if (!email || typeof email !== "string" || !password || typeof password !== "string")
+        if (!emailRaw || typeof emailRaw !== "string" || !password || typeof password !== "string")
           return null;
 
         try {
+          // Avoid importing Prisma/bcrypt in middleware/edge bundles.
+          // These node-only dependencies are only needed when credentials login is executed.
+          const [{ prisma }, bcrypt] = await Promise.all([
+            import("@/lib/prisma"),
+            import("bcryptjs")
+          ]);
+
+          const email = emailRaw.trim().toLowerCase();
           const user = await prisma.user.findUnique({
-            where: { email: email as string }
+            where: { email }
           });
 
           if (!user) return null;
           if (!user.passwordHash) return null;
 
-          const passwordValid = await compare(password, user.passwordHash);
+          const passwordValid = await bcrypt.compare(password, user.passwordHash);
 
           if (!passwordValid) return null;
 

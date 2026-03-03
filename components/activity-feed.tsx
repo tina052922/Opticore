@@ -31,7 +31,15 @@ export function ActivityFeed({ role, collegeId, programId, userId }: ActivityFee
 
     if (!socket) {
       socket = io(url, {
-        transports: ["websocket"]
+        transports: ["websocket"],
+        timeout: 2000,
+        reconnection: false
+      });
+      socket.on("connect_error", () => {
+        try {
+          socket?.disconnect();
+        } catch {}
+        socket = null;
       });
     }
 

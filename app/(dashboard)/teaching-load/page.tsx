@@ -125,8 +125,8 @@ export default function TeachingLoadPage() {
 
   const getLoadStatusColor = (load: TeachingLoad) => {
     if (load.isOverload) return "destructive";
-    if (load.currentUnits > load.standardLoad * 0.9) return "warning";
-    return "success";
+    if (load.currentUnits > load.standardLoad * 0.9) return "secondary";
+    return "outline";
   };
 
   const getLoadStatusText = (load: TeachingLoad) => {
@@ -137,9 +137,9 @@ export default function TeachingLoadPage() {
 
   const getRequestStatusColor = (status: string) => {
     switch (status) {
-      case "APPROVED": return "success";
+      case "APPROVED": return "default";
       case "REJECTED": return "destructive";
-      default: return "warning";
+      default: return "secondary";
     }
   };
 
@@ -319,7 +319,8 @@ export default function TeachingLoadPage() {
                               <DialogHeader>
                                 <DialogTitle className="text-white">Overload Justification</DialogTitle>
                                 <DialogDescription className="text-slate-400">
-                                  Provide justification for {load.instructorName}'s overload of {load.excessUnits} units
+                                  Provide justification for {load.instructorName}
+                                  &apos;s overload of {load.excessUnits} units
                                 </DialogDescription>
                               </DialogHeader>
                               <div className="space-y-4">

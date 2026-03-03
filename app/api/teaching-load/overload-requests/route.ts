@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
         excessUnits,
         justification,
         status: "PENDING",
-        requestedBy: session.user.id
+        requestedBy: (session.user as any).id ?? session.user.email ?? "unknown"
       }
     });
 

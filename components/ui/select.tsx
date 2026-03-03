@@ -15,7 +15,7 @@ interface SelectValueProps {
   placeholder?: string
 }
 
-interface SelectContentProps {
+interface SelectContentProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode
 }
 
@@ -29,12 +29,7 @@ const SelectContext = React.createContext<{
   onValueChange?: (value: string) => void
 }>({})
 
-const Select: React.FC<SelectProps> & {
-  Trigger: typeof SelectTrigger
-  Value: typeof SelectValue
-  Content: typeof SelectContent
-  Item: typeof SelectItem
-} = ({ value, onValueChange, children }) => {
+const Select: React.FC<SelectProps> = ({ value, onValueChange, children }) => {
   return (
     <SelectContext.Provider value={{ value, onValueChange }}>
       {children}
@@ -68,10 +63,13 @@ const SelectValue: React.FC<SelectValueProps> = ({ placeholder }) => {
   return <span>{context.value || placeholder}</span>
 }
 
-const SelectContent: React.FC<SelectContentProps> = ({ children }) => {
+const SelectContent: React.FC<SelectContentProps> = ({ children, className, ...props }) => {
   // Simplified dropdown content
   return (
-    <div className="absolute z-50 min-w-[8rem] overflow-hidden rounded-md border bg-white shadow-md">
+    <div
+      className={`absolute z-50 min-w-[8rem] overflow-hidden rounded-md border bg-white shadow-md ${className || ""}`}
+      {...props}
+    >
       {children}
     </div>
   )

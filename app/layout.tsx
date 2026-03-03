@@ -7,7 +7,8 @@ import { Providers } from "@/components/providers";
 export const metadata: Metadata = {
   title: "OptiCore – Smart Campus Intelligence",
   description:
-    "OptiCore is a smart campus intelligence system for CTU-Argao Campus with optimized timetabling, room navigation, and schedule analytics."
+    "OptiCore is a smart campus intelligence system for CTU-Argao Campus with optimized timetabling, room navigation, and schedule analytics.",
+  icons: { icon: "/icon.svg" }
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

@@ -13,14 +13,28 @@ type AuditPayload = {
 let socket: Socket | null = null;
 
 function getSocket(): Socket | null {
+  // Never try to open a websocket from server code.
+  if (typeof window === "undefined") return null;
+
   const url = process.env.NEXT_PUBLIC_SOCKET_URL;
   if (!url) return null;
 
   if (!socket) {
-    socket = io(url, {
-      transports: ["websocket"],
-      autoConnect: true
-    });
+    try {
+      socket = io(url, {
+        transports: ["websocket"],
+        timeout: 2000,
+        reconnection: false
+      });
+      socket.on("connect_error", () => {
+        try {
+          socket?.disconnect();
+        } catch {}
+        socket = null;
+      });
+    } catch {
+      socket = null;
+    }
   }
   return socket;
 }

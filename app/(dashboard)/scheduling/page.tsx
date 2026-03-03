@@ -271,8 +271,8 @@ export default function ChairmanSchedulingPage() {
 
   const getLoadStatusColor = (load: TeachingLoad) => {
     if (load.isOverload) return "destructive";
-    if (load.currentUnits > load.standardLoad * 0.9) return "warning";
-    return "success";
+    if (load.currentUnits > load.standardLoad * 0.9) return "secondary";
+    return "outline";
   };
 
   const getLoadStatusText = (load: TeachingLoad) => {
@@ -337,7 +337,10 @@ export default function ChairmanSchedulingPage() {
               {scheduleEntries.length === 0 ? (
                 <div className="text-center py-8 text-slate-400">
                   <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No schedule entries yet. Click "Add Entry" to start building your schedule.</p>
+                  <p>
+                    No schedule entries yet. Click &quot;Add Entry&quot; to start building your
+                    schedule.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -348,7 +351,7 @@ export default function ChairmanSchedulingPage() {
                           <div className="flex items-center gap-2 mb-2">
                             <h3 className="font-semibold text-white">{entry.subject.code}</h3>
                             <Badge variant="secondary">{entry.subject.category}</Badge>
-                            <Badge variant="outline">{entry.units} units</Badge>
+                            <Badge variant="outline">{entry.subject.units} units</Badge>
                           </div>
                           <p className="text-slate-300 mb-2">{entry.subject.title}</p>
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">

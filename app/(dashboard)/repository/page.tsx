@@ -233,7 +233,9 @@ export default async function RepositoryPage() {
                       bsDegree,
                       msDegree: null,
                       status,
-                      designation: null
+                      designation: null,
+                      rank: "INSTRUCTOR_I",
+                      hourlyRate: 200
                     }
                   });
                 }
@@ -298,7 +300,9 @@ export default async function RepositoryPage() {
                     units: 3,
                     lecHours: 3,
                     labHours: 0,
+                    totalHours: 3,
                     type,
+                    category: type === "GEC" ? "GEC" : "DEPARTMENTAL",
                     college: null,
                     prerequisite: null
                   }

@@ -2,15 +2,15 @@
 
 import { useState, useMemo } from "react";
 
-export function RepositorySearchWrapper({
+export function RepositorySearchWrapper<T extends { id: string }>({
   items,
   children,
   getSearchText,
   placeholder = "Filter…"
 }: {
-  items: { id: string }[];
-  children: (filtered: typeof items) => React.ReactNode;
-  getSearchText: (item: (typeof items)[0]) => string;
+  items: T[];
+  children: (filtered: T[]) => React.ReactNode;
+  getSearchText: (item: T) => string;
   placeholder?: string;
 }) {
   const [q, setQ] = useState("");

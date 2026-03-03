@@ -3,6 +3,7 @@
 import { useState } from "react";
 import QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
 
 type Props = {
   roomCode: string;
@@ -31,9 +32,12 @@ export function RoomQrButton({ roomCode }: Props) {
       </Button>
       {dataUrl && (
         <div className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 p-3">
-          <img
+          <Image
             src={dataUrl}
             alt={`QR for ${roomCode}`}
+            width={160}
+            height={160}
+            unoptimized
             className="h-40 w-40"
           />
           <p className="mt-1 text-[11px] text-slate-400">
