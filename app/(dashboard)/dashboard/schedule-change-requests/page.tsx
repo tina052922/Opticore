@@ -1,7 +1,12 @@
 import { auth } from "@/auth.config";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { Button } from "@/components/ui/button";
+import { logAudit } from "@/lib/audit";
+import { notifyUsers, notifySectionStudents } from "@/lib/notifications";
+import { syncScheduleToDraftEntries } from "@/lib/schedule-sync";
+import { DayOfWeek } from "@prisma/client";
 
 type PendingRequestWithConflict = Awaited<
   ReturnType<typeof getPendingRequestsWithConflicts>
@@ -134,8 +139,10 @@ export default async function ScheduleChangeRequestsPage() {
     const req = await prisma.scheduleChangeRequest.findUnique({
       where: { id },
       include: {
+        requester: true,
         schedule: {
           include: {
+            subject: true,
             section: { include: { program: true } }
           }
         }
@@ -145,31 +152,70 @@ export default async function ScheduleChangeRequestsPage() {
       throw new Error("Forbidden");
     }
 
+    const pendingCheck = await getPendingRequestsWithConflicts(cid);
+    const hadConflict = !!pendingCheck.find((p) => p.id === id)?.conflictWarning;
+
+    let newEndTime: string | undefined;
+    let updateDay: DayOfWeek | undefined;
+
+    if (req.newStartTime && req.schedule) {
+      const s = req.schedule;
+      const [sh, sm] = s.startTime.split(":").map(Number);
+      const [eh, em] = s.endTime.split(":").map(Number);
+      const durationMins = eh * 60 + em - (sh * 60 + sm);
+      const [nsh, nsm] = req.newStartTime.split(":").map(Number);
+      const newStartMins = nsh * 60 + nsm;
+      const newEndMins = newStartMins + durationMins;
+      const newEndH = Math.floor(newEndMins / 60);
+      const newEndM = newEndMins % 60;
+      newEndTime = `${String(newEndH).padStart(2, "0")}:${String(newEndM).padStart(2, "0")}`;
+      updateDay = (req.newDay as DayOfWeek) ?? s.day;
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.scheduleChangeRequest.update({
         where: { id },
-        data: { status: "APPROVED" }
+        data: { status: "APPROVED", conflictsResolved: !hadConflict }
       });
-      if (req.newStartTime && req.schedule) {
-        const s = req.schedule;
-        const [sh, sm] = s.startTime.split(":").map(Number);
-        const [eh, em] = s.endTime.split(":").map(Number);
-        const durationMins = eh * 60 + em - (sh * 60 + sm);
-        const [nsh, nsm] = req.newStartTime.split(":").map(Number);
-        const newStartMins = nsh * 60 + nsm;
-        const newEndMins = newStartMins + durationMins;
-        const newEndH = Math.floor(newEndMins / 60);
-        const newEndM = newEndMins % 60;
-        const newEndTime = `${String(newEndH).padStart(2, "0")}:${String(newEndM).padStart(
-          2,
-          "0"
-        )}`;
+      if (req.schedule && req.newStartTime && newEndTime) {
         await tx.schedule.update({
-          where: { id: s.id },
-          data: { startTime: req.newStartTime, endTime: newEndTime }
+          where: { id: req.schedule.id },
+          data: {
+            startTime: req.newStartTime,
+            endTime: newEndTime,
+            day: updateDay,
+            ...(req.newRoomId ? { roomId: req.newRoomId } : {})
+          }
         });
       }
     });
+
+    if (req.schedule && req.newStartTime && newEndTime) {
+      await syncScheduleToDraftEntries(req.schedule.id, {
+        startTime: req.newStartTime,
+        endTime: newEndTime,
+        day: updateDay,
+        ...(req.newRoomId ? { roomId: req.newRoomId } : {})
+      });
+    }
+
+    const adminId = (s.user as { id?: string }).id;
+    if (adminId) {
+      await logAudit(adminId, "ScheduleChangeRequest", id, "APPROVED", hadConflict ? "With conflict warning" : "No conflicts");
+    }
+
+    const subjectLabel = req.schedule?.subject.code ?? "class";
+    await notifyUsers([req.requesterId], "Schedule change approved", `${subjectLabel}: time change approved.`);
+    if (req.schedule?.sectionId) {
+      await notifySectionStudents(req.schedule.sectionId, "Schedule updated", `${subjectLabel} schedule was updated.`);
+    }
+    const doiUsers = await prisma.user.findMany({ where: { role: "DOI" }, select: { id: true } });
+    await notifyUsers(doiUsers.map((u) => u.id), "Schedule change published", `${subjectLabel} updated.`);
+
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/schedules");
+    revalidatePath("/dashboard/reports");
+    revalidatePath("/dashboard/my-schedule");
 
     redirect("/dashboard/schedule-change-requests");
   }

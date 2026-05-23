@@ -4,6 +4,7 @@ import { auth } from "@/auth.config";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { UserBar } from "@/components/layout/user-bar";
+import { NotificationsPanel } from "@/components/notifications-panel";
 
 const ROLE_LABELS: Record<string, string> = {
   DOI: "Dean of Instructions",
@@ -158,6 +159,7 @@ export default async function DashboardLayout({
           </div>
         </header>
         <main className="flex-1 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-3 py-4 sm:px-6 sm:py-6">
+          <NotificationsPanel />
           {children}
         </main>
       </div>

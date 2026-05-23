@@ -54,7 +54,8 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
           department: user.department,
           collegeId: user.collegeId,
           programId: user.programId,
-          sectionId: user.sectionId
+          sectionId: user.sectionId,
+          mustChangePassword: user.mustChangePassword
         } as any;
       }
     })
@@ -68,6 +69,7 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
         token.collegeId = (user as any).collegeId;
         token.programId = (user as any).programId;
         (token as any).sectionId = (user as any).sectionId;
+        (token as any).mustChangePassword = (user as any).mustChangePassword;
       }
       return token;
     },
@@ -79,6 +81,7 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
         (session.user as any).collegeId = (token as any).collegeId;
         (session.user as any).programId = (token as any).programId;
         (session.user as any).sectionId = (token as any).sectionId;
+        (session.user as any).mustChangePassword = (token as any).mustChangePassword;
       }
       return session;
     }

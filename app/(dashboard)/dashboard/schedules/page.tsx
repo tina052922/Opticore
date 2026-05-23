@@ -2,6 +2,7 @@ import { auth } from "@/auth.config";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { ScheduleGridView } from "@/components/schedule-grid-view";
+import { ConflictEvaluator } from "@/components/conflict-evaluator";
 import Link from "next/link";
 
 const DAYS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"] as const;
@@ -122,6 +123,9 @@ export default async function SchedulesPage({
 
   const grid = buildGrid(schedules);
   const canViewOtherColleges = role === "DOI" || role === "COLLEGE_ADMIN";
+  const canApplySolutions = role === "DOI" || role === "COLLEGE_ADMIN";
+  const scopeLabel =
+    role === "DOI" ? "campus-wide" : role === "CHAIRMAN_ADMIN" ? "program" : "college";
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 text-xs">
@@ -130,9 +134,6 @@ export default async function SchedulesPage({
           <h1 className="text-xl font-semibold tracking-tight text-slate-50">
             Schedule View
           </h1>
-          <p className="text-slate-400">
-            Timetable grid by time and day. View by room or by college.
-          </p>
         </div>
         <ScheduleGridView
           rooms={rooms}
@@ -143,6 +144,10 @@ export default async function SchedulesPage({
           userCollegeId={collegeId ?? null}
         />
       </div>
+
+      {(role === "DOI" || role === "COLLEGE_ADMIN" || role === "CHAIRMAN_ADMIN") && (
+        <ConflictEvaluator canApply={canApplySolutions} scopeLabel={scopeLabel} />
+      )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80">
         <table className="w-full min-w-[720px] border-collapse text-left text-[11px]">

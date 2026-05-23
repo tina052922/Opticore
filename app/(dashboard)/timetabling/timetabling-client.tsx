@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { findScheduleConflicts, type ScheduleSlot } from "@/lib/scheduling/conflicts";
 
 type Schedule = {
   id: string;
@@ -19,20 +20,23 @@ type Schedule = {
 };
 
 function getConflictType(schedule: Schedule, all: Schedule[]): string | null {
-  const other = all.find(
-    (o) =>
-      o.id !== schedule.id &&
-      o.day === schedule.day &&
-      o.startTime === schedule.startTime &&
-      o.endTime === schedule.endTime &&
-      (o.roomId === schedule.roomId ||
-        o.instructorId === schedule.instructorId ||
-        o.sectionId === schedule.sectionId)
+  const slots: ScheduleSlot[] = all.map((s) => ({
+    id: s.id,
+    day: s.day,
+    startTime: s.startTime,
+    endTime: s.endTime,
+    roomId: s.roomId,
+    instructorId: s.instructorId,
+    sectionId: s.sectionId
+  }));
+  const hits = findScheduleConflicts(slots).filter(
+    (c) => c.entryAId === schedule.id || c.entryBId === schedule.id
   );
-  if (!other) return null;
-  if (other.roomId === schedule.roomId) return "Room double-booked";
-  if (other.instructorId === schedule.instructorId) return "Instructor overlap";
-  if (other.sectionId === schedule.sectionId) return "Section overlap";
+  if (!hits.length) return null;
+  const c = hits[0];
+  if (c.type === "ROOM") return "Room double-booked";
+  if (c.type === "INSTRUCTOR") return "Instructor overlap";
+  if (c.type === "SECTION") return "Section overlap";
   return "Conflict";
 }
 
@@ -59,15 +63,16 @@ export function TimetablingClient({
       ? schedules
       : schedules.filter((s) => s.roomId === roomFilter);
 
-  const conflictCount = schedules.filter((s) =>
-    schedules.some(
-      (o) =>
-        o.id !== s.id &&
-        o.day === s.day &&
-        o.startTime === s.startTime &&
-        o.endTime === s.endTime &&
-        (o.roomId === s.roomId || o.instructorId === s.instructorId || o.sectionId === s.sectionId)
-    )
+  const conflictCount = findScheduleConflicts(
+    schedules.map((s) => ({
+      id: s.id,
+      day: s.day,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      roomId: s.roomId,
+      instructorId: s.instructorId,
+      sectionId: s.sectionId
+    }))
   ).length;
 
   const byRoom = filtered.reduce<Record<string, Schedule[]>>((acc, s) => {
